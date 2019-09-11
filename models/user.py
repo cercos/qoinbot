@@ -3,7 +3,7 @@ from pymongoext import Model, DictField, StringField, ListField, NumberField, Da
 from pymongoext.manipulators import Manipulator
 from models import BaseModel
 from datetime import datetime, timedelta
-from utils import default
+from utils import default, number
 
 config = default.get("config.json")
 
@@ -54,11 +54,18 @@ class User(BaseModel):
             return doc
 
     class RoundGameBalanceManipulator(Manipulator):
-
-        def transform_incoming(self, doc, model, action):
+        def transform_outgoing(self, doc, model):
             if 'game' in doc:
                 if 'money' in doc['game']:
-                    int(round(doc['game']['money']))
+                    doc['game']['money'] = number.round_up(doc['game']['money'], 2)
                 if 'in_pocket' in doc['game']:
-                    int(round(doc['game']['in_pocket']))
+                    doc['game']['in_pocket'] = number.round_up(doc['game']['in_pocket'], 2)
             return doc
+
+        # def transform_incoming(self, doc, model, action):
+        #     if 'game' in doc:
+        #         if 'money' in doc['game']:
+        #             doc['game']['money'] = round(doc['game']['money'], 2)
+        #         if 'in_pocket' in doc['game']:
+        #             doc['game']['in_pocket'] = round(doc['game']['in_pocket'], 2)
+        #     return doc

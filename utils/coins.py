@@ -13,7 +13,7 @@ from utils import http, default
 cache = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), db=0)
 api = Coinpaprika.Client()
 config = default.get("config.json")
-available_quote_currencies = 'BTC, ETH, USD, EUR, PLN, KRW, GBP, CAD, JPY, RUB, TRY, NZD, AUD, CHF, UAH, HKD, SGD, NGN, PHP, MXN, BRL, THB, CLP, CNY, CZK, DKK, HUF, IDR, ILS, INR, MYR, NOK, PKR, SEK, TWD, ZAR, VND, BOB, COP, PEN, ARS, ISK'
+available_quote_currencies = 'USD, EUR, PLN, KRW, GBP, CAD, JPY, RUB, TRY, NZD, AUD, CHF, HKD, SGD, PHP, MXN, BRL, THB, CNY, CZK, DKK, HUF, IDR, ILS, INR, MYR, NOK, SEK, ZAR, ISK'
 
 
 def format_number(number):
@@ -81,7 +81,7 @@ async def get_coins(quote='USD'):
     return coins
 
 
-async def valid_symbols(symbols, user):
+async def valid_symbols(symbols):
     available_currencies = cache.get('valid-symbols')
     if not available_currencies:
         available_currencies = api.coins()

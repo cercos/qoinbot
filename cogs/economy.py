@@ -1,8 +1,10 @@
 from datetime import datetime
+
+import discord
 from discord.ext import commands
 from prodict import Prodict
 
-from utils import default, author, repo, coins
+from utils import default, author, repo, coins, number
 from models import User, Store, Item
 
 
@@ -17,9 +19,10 @@ class Economy(commands.Cog):
         user = await author.get(ctx.author)
         money = user['game']['money']
         in_pocket = user['game']['in_pocket']
+        total = number.round_up(money + in_pocket, 2)
         mention = ctx.author.mention
         await ctx.send(
-            f'```py\nIn Pocket: {in_pocket}\nBank: {money}\nTotal: {money + in_pocket}\n\nQoins represent a USD value by default, the balances will convert depending upon what quote currency you have set on your account.  Use the "{self.config.prefix[0]}sq <currency symbol>" command to change it```{mention}')
+            f'```py\nIn Pocket: {in_pocket}\nBank: {money}\nTotal: {total}\n\nQoins represent a USD value by default, the balances will convert depending upon what quote currency you have set on your account.  Use the "{self.config.prefix[0]}sq <currency symbol>" command to change it```{mention}')
 
     @commands.command(aliases=['inv'])
     async def inventory(self, ctx):
@@ -57,42 +60,72 @@ class Economy(commands.Cog):
         await ctx.send(
             f'```diff\n+{wage_earned} {self.config.economy.currency_name} You were in the cage for {wage_multiplier} hours.  You have to wait at least 1 hour to collect again.\n```{ctx.author.mention}')
 
-    @commands.command(name="deposit", aliases=['dep'])
-    async def deposit(self, ctx, amount):
+    @commands.group(name="deposit", aliases=['dep'], invoke_without_command=True)
+    async def _deposit(self, ctx, amount: float):
         """ Deposit pocket money into the bank account """
+        if ctx.invoked_subcommand is None:
+            user = await author.get(ctx.author)
+            if not user.game.in_pocket:
+                return await ctx.send(
+                    f'```fix\nYou don\'t have any money in your pocket\n```{ctx.author.mention}')
+            amount = number.round_down(amount, 2)
+            if amount > user.game.in_pocket:
+                return await ctx.send(
+                    f'```fix\nYou don\'t have enough money in your pocket. Available: {user.game.in_pocket}\n```{ctx.author.mention}')
+            user.game.money = user.game.money + amount
+            user.game.in_pocket = user.game.in_pocket - amount
+            User.save(user)
+
+            await ctx.send(
+                f'```diff\n+{amount} {self.config.economy.currency_name} were transferred to your bank account \n```{ctx.author.mention}')
+
+    @_deposit.command(name="all", aliases=['a'])
+    async def deposit_all(self, ctx):
         user = await author.get(ctx.author)
-        if not user.game.in_pocket:
+        pocket = user.game.in_pocket
+        if not pocket:
             return await ctx.send(
                 f'```fix\nYou don\'t have any money in your pocket\n```{ctx.author.mention}')
-        if amount == 'all':
-            amount = user.game.in_pocket
-        if int(amount) > user.game.in_pocket:
-            amount = user.game.in_pocket
-        user.game.money = user.game.money + int(amount)
-        user.game.in_pocket = user.game.in_pocket - int(amount)
+        user.game.in_pocket = 0
+        user.game.money += pocket
         User.save(user)
 
         await ctx.send(
-            f'```diff\n+{amount} {self.config.economy.currency_name} were transferred to your bank account \n```{ctx.author.mention}')
+            f'```diff\n+{pocket} {self.config.economy.currency_name} were transferred to your bank account \n```{ctx.author.mention}')
 
-    @commands.command(name="withdrawal", aliases=['with'])
-    async def withdrawal(self, ctx, amount):
+    @commands.group(name="withdrawal", aliases=['with'], invoke_without_command=True)
+    async def _withdrawal(self, ctx, amount: float):
         """ Withdrawal money from your bank account to your pocket """
+        if ctx.invoked_subcommand is None:
+            user = await author.get(ctx.author)
+            if not user.game.money:
+                return await ctx.send(
+                    f'```fix\nYou don\'t have any money in the bank\n```{ctx.author.mention}')
+            amount = number.round_down(amount, 2)
+            if amount > user.game.money:
+                return await ctx.send(
+                    f'```fix\nYou don\'t have enough money in your bank. Available: {user.game.money}\n```{ctx.author.mention}')
+            user.game.in_pocket = user.game.in_pocket + amount
+            user.game.money = user.game.money - amount
+            User.save(user)
+
+            await ctx.send(
+                f'```diff\n+{amount} {self.config.economy.currency_name} transferred to your pocket\n```{ctx.author.mention}')
+
+    @_withdrawal.command(name="all", aliases=['a'])
+    async def withdrawal_all(self, ctx):
         user = await author.get(ctx.author)
-        if not user.game.money:
+        money = user.game.money
+        if not money:
             return await ctx.send(
                 f'```fix\nYou don\'t have any money in the bank\n```{ctx.author.mention}')
-        if amount == 'all':
-            amount = user.game.money
-        amount = float(amount)
-        if amount > user.game.money:
-            amount = user.game.money
-        user.game.in_pocket = int(user.game.in_pocket + amount)
-        user.game.money = int(user.game.money - amount)
+        user.game.money = 0
+        user.game.in_pocket += money
         User.save(user)
 
         await ctx.send(
-            f'```diff\n+{amount} {self.config.economy.currency_name} transferred to your pocket\n```{ctx.author.mention}')
+            f'```diff\n+{money} {self.config.economy.currency_name} transferred to your pocket\n```{ctx.author.mention}')
+
 
     @commands.group(name='create', aliases=['make'])
     @commands.check(repo.is_owner)
@@ -167,6 +200,14 @@ class Economy(commands.Cog):
         Store.save(store)
 
         await ctx.send(f'```css\nStocked "{item_name}" in "{store_name}\n```')
+
+    @commands.group(name='give')
+    @commands.check(repo.is_owner)
+    async def _give(self, ctx, user: discord.Member, amount: float):
+        user = User.find_one({'user_id': str(user.id)})
+        user['game']['money'] = amount
+        User.save(user)
+        await ctx.send(f'```css\nGave {user["name"]} {amount} {self.config.economy.currency_name}\n```')
 
 
 def setup(bot):

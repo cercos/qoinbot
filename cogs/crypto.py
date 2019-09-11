@@ -86,19 +86,18 @@ class Crypto(commands.Cog):
 
     @commands.command(aliases=['sq'])
     async def set_quote(self, ctx, symbol):
-        """ Set the value coins are quoted in for your price requests.\n\nAvailable:\nBTC, ETH, USD, EUR, PLN, KRW, GBP, CAD, JPY, RUB, TRY, NZD, AUD, CHF, UAH, HKD, SGD, NGN, PHP, MXN, BRL, THB, CLP, CNY, CZK, DKK, HUF, IDR, ILS, INR, MYR, NOK, PKR, SEK, TWD, ZAR, VND, BOB, COP, PEN, ARS, ISK """
+        """ Set the value coins are quoted in for your price requests.\n\nAvailable:\nUSD, EUR, PLN, KRW, GBP, CAD, JPY, RUB, TRY, NZD, AUD, CHF, HKD, SGD, PHP, MXN, BRL, THB, CNY, CZK, DKK, HUF, IDR, ILS, INR, MYR, NOK, SEK, ZAR, ISK """
         user = await author.get(ctx.author)
         if symbol.upper() == user['quote_to']:
             return await ctx.send(f'```fix\nAlready set to {symbol.upper()}\n```')
-        if not await coins.valid_quote(symbol.upper()):
+        rates = await coins.rate_convert(user['quote_to'])
+
+        if not await coins.valid_quote(symbol.upper()) or not symbol.upper() in rates.keys():
             await ctx.send(f'```fix\nInvalid quote currency\n```')
             return await ctx.send(f'```\nAvailable quotes: {coins.available_quote_currencies}\n```')
-        rates = await coins.rate_convert(user['quote_to'])
-        money = rates[symbol.upper()] * user['game']['money']
-        in_pocket = rates[symbol.upper()] * user['game']['in_pocket']
         user['quote_to'] = symbol.upper()
-        user['game']['money'] = round(money)
-        user['game']['in_pocket'] = round(in_pocket)
+        user['game']['money'] = rates[symbol.upper()] * user['game']['money']
+        user['game']['in_pocket'] = rates[symbol.upper()] * user['game']['in_pocket']
         for i in range(len(user['game']['portfolio']['coins'])):
             user['game']['portfolio']['coins'][i]['cost'] = rates[symbol.upper()] * \
                                                             user['game']['portfolio']['coins'][i]['cost']
