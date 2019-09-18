@@ -84,22 +84,6 @@ class Crypto(commands.Cog):
 
         await ctx.send('```css\nCleared your price list\n```')
 
-    @commands.command(aliases=['sq'])
-    async def set_quote(self, ctx, symbol):
-        """ Set the value coins are quoted in for your price requests.\n\nAvailable:\nUSD, EUR, PLN, KRW, GBP, CAD, JPY, RUB, TRY, NZD, AUD, CHF, HKD, SGD, PHP, MXN, BRL, THB, CNY, CZK, DKK, HUF, IDR, ILS, INR, MYR, NOK, SEK, ZAR, ISK """
-        user = await author.get(ctx.author)
-        if symbol.upper() == user['quote_to']:
-            return await ctx.send(f'```fix\nAlready set to {symbol.upper()}\n```')
-        rates = await coins.rate_convert(user['quote_to'])
-
-        if not await coins.valid_quote(symbol.upper()) or not symbol.upper() in rates.keys():
-            await ctx.send(f'```fix\nInvalid quote currency\n```')
-            return await ctx.send(f'```\nAvailable quotes: {coins.available_quote_currencies}\n```')
-        user = await coins.convert_user_currency(user, rates, symbol.upper())
-        User.save(user)
-
-        await ctx.send(f'```fix\nSet your quote currency to {symbol.upper()}\n```')
-
 
 def setup(bot):
     bot.add_cog(Crypto(bot))

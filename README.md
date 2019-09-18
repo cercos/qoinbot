@@ -1,7 +1,7 @@
 # ![alt text](qoinbot.png "Qoinbot") Qoinbot
 A cryptocurrency Discord super bot
 
-Need help? Visit the server: https://discord.gg/9GxX8E
+Need help? Visit the server: https://discord.gg/QH2vSmU
 
 ## Requirements
 - Python 3.6 and up - https://www.python.org/downloads/
@@ -50,13 +50,19 @@ Commands a long and short hand form both will be shown below.
 ?withdrawal <amount>
 ?with <amount>
 ```
+##### Set quote command
+*This command sets the quote you will see all prices in including any Qoin values*
+```
+?setquote <symbol>
+?sq <symbol>
+```
 ## Price checking
 ### Price command
 ```
 ?price <coin symbol>
 ?p <coin_symbols>
 ```
-### Price list command
+### Price list commands
 The price list command saves a list of symbols so you don't have to type them out every time.
 ##### Check the price list
 ```

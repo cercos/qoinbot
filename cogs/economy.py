@@ -27,6 +27,23 @@ class Economy(commands.Cog):
         await ctx.send(
             f'```py\nIn Pocket: {in_pocket}\nBank: {money}\nInvested: {"{0:.2f}".format(invested)}\nTotal: {total}\n\nQoins represent a USD value by default, the balances will convert depending upon what quote currency you have set on your account.  Use the "{self.config.prefix[0]}sq <currency symbol>" command to change it```{mention}')
 
+    @commands.command(name='setquote', aliases=['sq'])
+    async def set_quote(self, ctx, symbol):
+        """ Set the quote currency prices are displayed in for your account.\n\nAvailable:\nUSD, EUR, PLN, KRW, GBP, CAD, JPY, RUB, TRY, NZD, AUD, CHF, HKD, SGD, PHP, MXN, BRL, THB, CNY, CZK, DKK, HUF, IDR, ILS, INR, MYR, NOK, SEK, ZAR, ISK """
+        user = await author.get(ctx.author)
+        if symbol.upper() == user['quote_to']:
+            return await ctx.send(f'```fix\nAlready set to {symbol.upper()}\n```')
+        rates = await coins.rate_convert(user['quote_to'])
+
+        if not await coins.valid_quote(symbol.upper()) or not symbol.upper() in rates.keys():
+            await ctx.send(f'```fix\nInvalid quote currency\n```')
+            return await ctx.send(f'```\nAvailable quotes: {coins.available_quote_currencies}\n```')
+        user = await coins.convert_user_currency(user, rates, symbol.upper())
+        User.save(user)
+
+        await ctx.send(f'```fix\nSet your quote currency to {symbol.upper()}\n```')
+
+
     @commands.command(aliases=['inv'])
     async def inventory(self, ctx):
         """ Check your item inventory """
@@ -132,6 +149,21 @@ class Economy(commands.Cog):
         await ctx.send(
             f'```diff\n+{money} {self.config.economy.currency_name} transferred to your pocket\n```{ctx.author.mention}')
 
+    @commands.command(name='give')
+    async def give(self, ctx, amount: float, user: discord.Member):
+        """ Give a user Qoins from your account """
+        giver = await author.get(ctx.author)
+        receiver = User.find_one({'user_id': str(user.id)})
+        if not receiver:
+            return await ctx.send(f'```fix\nCannot find user\n```')
+        if giver['game']['in_pocket'] < amount:
+            return await ctx.send(f'```fix\nYou don\'t have enough money in your pocket\n```')
+        giver['game']['in_pocket'] -= amount
+        receiver['game']['in_pocket'] += amount
+        User.save(giver)
+        User.save(receiver)
+        await ctx.send(f'```css\nYou gave {receiver["name"]} {amount} {self.config.economy.currency_name}\n```')
+
     @commands.group(name='create', aliases=['make'])
     @commands.check(repo.is_owner)
     async def _create(self, ctx):
@@ -224,13 +256,14 @@ class Economy(commands.Cog):
 
         await ctx.send(f'```css\nStocked "{item_name}" in "{store_name}"\n```')
 
-    @commands.group(name='give')
+    @commands.group(name='bestow')
     @commands.check(repo.is_owner)
-    async def _give(self, ctx, user: discord.Member, amount: float):
+    async def _bestow(self, ctx, user: discord.Member, amount: float):
         user = User.find_one({'user_id': str(user.id)})
         user['game']['money'] = amount
         User.save(user)
-        await ctx.send(f'```css\nGave {user["name"]} {amount} {self.config.economy.currency_name}\n```')
+        await ctx.send(
+            f'```css\n{amount} {self.config.economy.currency_name} has been bestowed upon {user["name"]}\n```')
 
     @commands.group(name='reset')
     @commands.check(repo.is_owner)

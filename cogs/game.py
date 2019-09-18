@@ -155,22 +155,6 @@ class Game(commands.Cog):
 
         await ctx.send(f'```\nBiggest whales:\n{user["quote_to"]}\n{whale_list}\n\nPage {page} of {page_count}```')
 
-    #
-    # @commands.command(aliases=['fc'])
-    # @commands.check(repo.is_owner)
-    # async def fixcoins(self, ctx):
-    #     users = User.find()
-    #
-    #     for user in users:
-    #         coin_prices = await coins.get_coins(user['quote_to'])
-    #
-    #         for i in range(len(user['game']['portfolio']['transactions'])):
-    #             coin = list(filter(lambda c: c['symbol'] == user['game']['portfolio']['transactions'][i]['symbol'], coin_prices))
-    #
-    #             user['game']['portfolio']['transactions'][i]['name'] = coin[0]['name']
-    #
-    #         User.save(user)
-    #     await ctx.send('```\nFixed coins\n```')
 
 def setup(bot):
     bot.add_cog(Game(bot))
