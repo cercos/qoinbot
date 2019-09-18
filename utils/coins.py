@@ -4,6 +4,7 @@ import json
 import aiohttp
 from coinpaprika import client as Coinpaprika
 import redis
+from prodict import Prodict
 from toolz import curried
 import currency
 from urllib3.exceptions import NewConnectionError
@@ -25,7 +26,7 @@ def percent(a, b):
     return result
 
 
-async def rate_convert(from_currency):
+async def rate_convert(from_currency='USD'):
     url = f'https://api.exchangeratesapi.io/latest?base={from_currency}'
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
@@ -52,20 +53,36 @@ async def _fetch(url):
     return await http.get(url, res_method='json')
 
 
-async def get_value(base, quote, amount, coin_list):
+async def portfolio_value(user, coin_list):
+    value = 0
+    if user.game.portfolio.coins:
+        for coin in user.game.portfolio.coins:
+            coin = Prodict.from_dict(coin)
+            value += await get_value(coin.symbol, user.quote_to, coin.name, coin.amount, coin_list)
+    return value
+
+
+async def get_value(base, quote, name, amount, coin_list):
     value = None
-    if not coin_list:
-        coin_list = get_coins(quote)
     for coin in coin_list:
-        if base == coin['symbol']:
+        if base == coin['symbol'] and name == coin['name']:
             value = coin['quotes'][quote]['price'] * amount
 
     return value
 
 
-def portfolio_has(user, coin, ptype: str = 'coins'):
+def portfolio_check_for_dupes(user, symbol, ptype: str = 'coins'):
+    names = []
     for i, el in enumerate(user['game']['portfolio'][ptype]):
-        if el['symbol'] == coin:
+        if el['symbol'] == symbol:
+            names.append(el['name'])
+    names = list(set(names))
+    return names
+
+
+def portfolio_has(user, symbol, name, ptype: str = 'coins'):
+    for i, el in enumerate(user['game']['portfolio'][ptype]):
+        if el['symbol'] == symbol and el["name"] == name:
             return {'key': i}
     return False
 
@@ -90,7 +107,6 @@ async def valid_symbols(symbols):
         available_currencies = json.loads(available_currencies)
     valid_symbol_list = [d['symbol'] for d in available_currencies]
     return list(set(valid_symbol_list) & set(symbols))
-
 
 
 async def valid_quote(quote):
@@ -121,3 +137,19 @@ async def generate_chart(ctx, symbols: str, quote: str, sort_key='percent_change
             )
 
     return chart
+
+
+async def convert_user_currency(user, rates, currency_symbol: str):
+    user['quote_to'] = currency_symbol.upper()
+    user['game']['money'] = rates[currency_symbol.upper()] * user['game']['money']
+    user['game']['in_pocket'] = rates[currency_symbol.upper()] * user['game']['in_pocket']
+    for i in range(len(user['game']['portfolio']['coins'])):
+        user['game']['portfolio']['coins'][i]['cost'] = rates[currency_symbol.upper()] * \
+                                                        user['game']['portfolio']['coins'][i]['cost']
+    for i in range(len(user['game']['portfolio']['transactions'])):
+        user['game']['portfolio']['transactions'][i]['cost'] = rates[currency_symbol.upper()] * \
+                                                               user['game']['portfolio']['transactions'][i]['cost']
+        user['game']['portfolio']['transactions'][i]['coin_price'] = rates[currency_symbol.upper()] * \
+                                                                     user['game']['portfolio']['transactions'][i][
+                                                                         'coin_price']
+    return user

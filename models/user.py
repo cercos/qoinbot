@@ -1,9 +1,11 @@
 from pymongo import IndexModel
 from pymongoext import Model, DictField, StringField, ListField, NumberField, DateTimeField
 from pymongoext.manipulators import Manipulator
+from toolz import curried
+
 from models import BaseModel
 from datetime import datetime, timedelta
-from utils import default, number
+from utils import default, number, coins
 
 config = default.get("config.json")
 
@@ -40,7 +42,7 @@ class User(BaseModel):
                 {"$lookup": {
                     "from": "item",
                     "foreignField": "_id",
-                    "localField": "item_list",
+                    "localField": 'item_list.id',
                     "as": "inventory"
                 }},
                 {"$match": {"_id": doc['_id']}}
@@ -57,15 +59,10 @@ class User(BaseModel):
         def transform_outgoing(self, doc, model):
             if 'game' in doc:
                 if 'money' in doc['game']:
-                    doc['game']['money'] = number.round_up(doc['game']['money'], 2)
+                    doc['game']['money'] = float('{0:.6f}'.format(doc['game']['money']))
                 if 'in_pocket' in doc['game']:
-                    doc['game']['in_pocket'] = number.round_up(doc['game']['in_pocket'], 2)
+                    doc['game']['in_pocket'] = float('{0:.6f}'.format(doc['game']['in_pocket']))
             return doc
 
         # def transform_incoming(self, doc, model, action):
-        #     if 'game' in doc:
-        #         if 'money' in doc['game']:
-        #             doc['game']['money'] = round(doc['game']['money'], 2)
-        #         if 'in_pocket' in doc['game']:
-        #             doc['game']['in_pocket'] = round(doc['game']['in_pocket'], 2)
         #     return doc

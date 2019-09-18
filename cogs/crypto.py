@@ -37,7 +37,7 @@ class Crypto(commands.Cog):
     async def price_list_add(self, ctx, *, symbols):
         """ Add coins to your price list """
         user = await author.get(ctx.author)
-        new_coins = await coins.valid_symbols(symbols.upper().split(' '), user)
+        new_coins = await coins.valid_symbols(symbols.upper().split(' '))
         filtered_coins = [x for x in new_coins if x not in user['price_list']['coins']]
 
         if user['price_list']['coins']:
@@ -95,18 +95,7 @@ class Crypto(commands.Cog):
         if not await coins.valid_quote(symbol.upper()) or not symbol.upper() in rates.keys():
             await ctx.send(f'```fix\nInvalid quote currency\n```')
             return await ctx.send(f'```\nAvailable quotes: {coins.available_quote_currencies}\n```')
-        user['quote_to'] = symbol.upper()
-        user['game']['money'] = rates[symbol.upper()] * user['game']['money']
-        user['game']['in_pocket'] = rates[symbol.upper()] * user['game']['in_pocket']
-        for i in range(len(user['game']['portfolio']['coins'])):
-            user['game']['portfolio']['coins'][i]['cost'] = rates[symbol.upper()] * \
-                                                            user['game']['portfolio']['coins'][i]['cost']
-        for i in range(len(user['game']['portfolio']['transactions'])):
-            user['game']['portfolio']['transactions'][i]['cost'] = rates[symbol.upper()] * \
-                                                                   user['game']['portfolio']['transactions'][i]['cost']
-            user['game']['portfolio']['transactions'][i]['coin_price'] = rates[symbol.upper()] * \
-                                                                         user['game']['portfolio']['transactions'][i][
-                                                                             'coin_price']
+        user = await coins.convert_user_currency(user, rates, symbol.upper())
         User.save(user)
 
         await ctx.send(f'```fix\nSet your quote currency to {symbol.upper()}\n```')

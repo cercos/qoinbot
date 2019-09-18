@@ -71,3 +71,9 @@ async def prettyResults(ctx, filename: str = "Results", resultmsg: str = "Here's
         content=resultmsg,
         file=discord.File(data, filename=timetext(filename.title()))
     )
+
+
+def divide_chunks(l, n):
+    # looping till length l
+    for i in range(0, len(l), n):
+        yield l[i:i + n]

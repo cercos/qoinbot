@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 
 import discord
@@ -17,18 +18,19 @@ class Economy(commands.Cog):
     async def balance(self, ctx):
         """ Check your balance """
         user = await author.get(ctx.author)
-        money = user['game']['money']
-        in_pocket = user['game']['in_pocket']
-        total = number.round_up(money + in_pocket, 2)
+        money = user.game.money
+        in_pocket = user.game.in_pocket
+        invested = sum(c['cost'] for c in user.game.portfolio.coins)
+        total = number.round_up(money + in_pocket + invested, 2)
+
         mention = ctx.author.mention
         await ctx.send(
-            f'```py\nIn Pocket: {in_pocket}\nBank: {money}\nTotal: {total}\n\nQoins represent a USD value by default, the balances will convert depending upon what quote currency you have set on your account.  Use the "{self.config.prefix[0]}sq <currency symbol>" command to change it```{mention}')
+            f'```py\nIn Pocket: {in_pocket}\nBank: {money}\nInvested: {"{0:.2f}".format(invested)}\nTotal: {total}\n\nQoins represent a USD value by default, the balances will convert depending upon what quote currency you have set on your account.  Use the "{self.config.prefix[0]}sq <currency symbol>" command to change it```{mention}')
 
     @commands.command(aliases=['inv'])
     async def inventory(self, ctx):
         """ Check your item inventory """
         user = await author.get(ctx.author)
-
         item_list = ''
         if user.inventory:
             for item in user.inventory:
@@ -40,10 +42,10 @@ class Economy(commands.Cog):
 
     @commands.command(name="wage")
     async def wage(self, ctx):
-        """ Spend your time in the wage cage and collect your ration """
+        """ Spend your time in the wage cage and collect your ration.\n100 hours max accumulation per collection. """
         user = await author.get(ctx.author)
         now = datetime.now()
-        diff = now - user.game.last_wage
+        diff = now - user.game.last_wage if user.game.last_wage else datetime.now()
         wage_multiplier = int((diff.seconds / 60 / 60))
         wage_earned = int(user.game.wage * wage_multiplier)
         minutes = float(60 - diff.seconds / 60)
@@ -51,14 +53,18 @@ class Economy(commands.Cog):
         if wage_multiplier < 1:
             return await ctx.send(
                 f'```fix\nWagey wagey, you\'re in the cagey.  You can collect again in {int(minutes)}:{str(int(seconds)).zfill(2)}\n```{ctx.author.mention}')
+        if wage_multiplier > 100:
+            actual = wage_multiplier
+            wage_multiplier = 100
+            wage_earned = int(user.game.wage * wage_multiplier)
 
         user.game.in_pocket = int(user.game.in_pocket + wage_earned)
         user.game.last_wage = datetime.now()
-        user.game.total_wages = wage_earned + user.game.total_wages
+        user.game.total_wages = wage_earned + user.game.total_wages if user.game.total_wages else 0
         User.save(user)
 
         await ctx.send(
-            f'```diff\n+{wage_earned} {self.config.economy.currency_name} You were in the cage for {wage_multiplier} hours.  You have to wait at least 1 hour to collect again.\n```{ctx.author.mention}')
+            f'```diff\n+{wage_earned} {self.config.economy.currency_name} You were in the cage for {wage_multiplier if wage_multiplier < 100 else 100} hours.  You have to wait at least 1 hour to collect again.\n```{ctx.author.mention}')
 
     @commands.group(name="deposit", aliases=['dep'], invoke_without_command=True)
     async def _deposit(self, ctx, amount: float):
@@ -126,7 +132,6 @@ class Economy(commands.Cog):
         await ctx.send(
             f'```diff\n+{money} {self.config.economy.currency_name} transferred to your pocket\n```{ctx.author.mention}')
 
-
     @commands.group(name='create', aliases=['make'])
     @commands.check(repo.is_owner)
     async def _create(self, ctx):
@@ -159,6 +164,22 @@ class Economy(commands.Cog):
             return await ctx.send(f'```fix\nThere was an error creating the item "{name}"\n```')
 
         await ctx.send(f'```css\nCreated the item "{name}"\n```')
+
+    @commands.group(name='delete')
+    @commands.check(repo.is_owner)
+    async def _delete(self, ctx):
+        """ Delete operations """
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help("bank")
+
+    @_delete.command(name="item", aliases=['i'])
+    @commands.check(repo.is_owner)
+    async def delete_item(self, ctx, name: str):
+        """ Create an item """
+        if not Item.delete_one({'name': name}):
+            return await ctx.send(f'```fix\nThere was a problem deleting item "{name}"\n```')
+
+        await ctx.send(f'```css\nDeleted the item "{name}"\n```')
 
     @commands.group(name='items')
     @commands.check(repo.is_owner)
@@ -193,13 +214,15 @@ class Economy(commands.Cog):
         if store.item_list:
             if item.id in store['item_list']:
                 return await ctx.send(f'```fix\nItem "{item_name}" already exists in "{store_name}"\n```')
-            store.item_list = store.item_list.append(item.id)
+            store.item_list.append(item.id)
+            print('exist')
         else:
+            print('not exist')
             store.item_list = [item.id]
 
         Store.save(store)
 
-        await ctx.send(f'```css\nStocked "{item_name}" in "{store_name}\n```')
+        await ctx.send(f'```css\nStocked "{item_name}" in "{store_name}"\n```')
 
     @commands.group(name='give')
     @commands.check(repo.is_owner)
@@ -208,6 +231,37 @@ class Economy(commands.Cog):
         user['game']['money'] = amount
         User.save(user)
         await ctx.send(f'```css\nGave {user["name"]} {amount} {self.config.economy.currency_name}\n```')
+
+    @commands.group(name='reset')
+    @commands.check(repo.is_owner)
+    async def _reset(self, ctx, user: discord.Member):
+        user = User.find_one({'user_id': str(user.id)})
+        user['game'] = {
+            'in_pocket': 0,
+            'money': self.config.economy.start_money,
+            'wage': self.config.economy.start_wage,
+            'last_wage': datetime.now(),
+            'portfolio': {
+                'coins': [],
+                'transactions': []
+            }
+        }
+        await ctx.send('```\nAre you sure you want to reset user? (y/n)\n```')
+
+        def pred(m):
+            return m.author == ctx.message.author and m.channel == ctx.message.channel
+
+        try:
+            msg = await self.bot.wait_for('message', check=pred, timeout=15.0)
+            confirm = msg.content
+        except asyncio.TimeoutError:
+            return await ctx.send(f'```fix\nYou took too long...\n```')
+        else:
+            if confirm in ['yes', 'y']:
+                User.save(user)
+                return await ctx.send(f'```css\nReset user "{user["name"]}"\n```')
+            else:
+                return await ctx.send(f'```fix\nCanceled reset"\n```')
 
 
 def setup(bot):

@@ -1,6 +1,6 @@
 import discord
 import re
-
+import asyncio
 from discord.ext import commands
 from utils import permissions, default
 
@@ -202,7 +202,10 @@ class Moderator(commands.Cog):
 
         deleted = len(deleted)
         if message is True:
-            await ctx.send(f'🚮 Successfully removed {deleted} message{"" if deleted == 1 else "s"}.')
+            removed = await ctx.send(f'🚮 Successfully removed {deleted} message{"" if deleted == 1 else "s"}.')
+            await asyncio.sleep(2)
+            await ctx.message.delete()
+            await removed.delete()
 
     @prune.command()
     async def embeds(self, ctx, search=100):
