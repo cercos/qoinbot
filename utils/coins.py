@@ -55,10 +55,10 @@ async def _fetch(url):
 
 async def portfolio_value(user, coin_list):
     value = 0
-    if user.game.portfolio.coins:
-        for coin in user.game.portfolio.coins:
+    if user['game']['portfolio']['coins']:
+        for coin in user['game']['portfolio']['coins']:
             coin = Prodict.from_dict(coin)
-            value += await get_value(coin.symbol, user.quote_to, coin.name, coin.amount, coin_list)
+            value += await get_value(coin.symbol, user['quote_to'], coin.name, coin.amount, coin_list)
     return value
 
 

@@ -81,7 +81,6 @@ class Crypto(commands.Cog):
             return await ctx.send_help("price list add")
         user['price_list']['coins'] = []
         User.save(user)
-
         await ctx.send('```css\nCleared your price list\n```')
 
 

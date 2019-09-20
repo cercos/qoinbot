@@ -36,7 +36,7 @@ class Store(commands.Cog):
         user.game.in_pocket = round(user.game.in_pocket - total_cost)
         user.item_list.append({
             'id': item.id,
-            'created_at': datetime.now()
+            'last_run': None
         })
         User.save(user)
         await ctx.send(f'```css\nYou bought an item\n```')

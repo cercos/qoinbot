@@ -1,5 +1,7 @@
 import asyncio
 from datetime import datetime
+
+import discord
 from discord.ext import commands
 from prodict import Prodict
 import currency
@@ -146,14 +148,30 @@ class Game(commands.Cog):
                 if doc['quote_to'] != user['quote_to']:
                     rates = await coins.rate_convert(doc['quote_to'])
                     doc = await coins.convert_user_currency(doc, rates, user['quote_to'])
-                doc_pvalue = 0
-                for coin in doc['game']['portfolio']['coins']:
-                    doc_pvalue += await coins.get_value(coin['symbol'], doc['quote_to'], coin['name'], coin['amount'], coin_list)
+                doc_pvalue = await coins.portfolio_value(doc, coin_list)
                 doc_total = currency.symbol(user["quote_to"]) + '{0:.2f}'.format(
                     doc["game"]["money"] + doc["game"]["in_pocket"] + doc_pvalue)
                 whale_list += f'\n{doc["name"]}{" " * (25 - len(doc["name"]))}{doc_total}'
 
         await ctx.send(f'```\nBiggest whales:\n{user["quote_to"]}\n{whale_list}\n\nPage {page} of {page_count}```')
+
+    @commands.group(name='remove', aliases=['rem'])
+    @commands.check(repo.is_owner)
+    async def _remove(self, ctx):
+        """ Remove operations """
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help("remove")
+
+    @_remove.command(name="user", aliases=['u'])
+    @commands.check(repo.is_owner)
+    async def remove_user(self, ctx, user: str):
+        """ Remove a user """
+        _user = User.find_one({'name': user})
+        if not _user:
+            return await ctx.send(f'```fix\nCannot find user with name "{user}"\n```')
+        User.remove({'name': user})
+
+        await ctx.send(f'```css\nRemoved the user "{user}"\n```')
 
 
 def setup(bot):

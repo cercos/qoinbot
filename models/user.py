@@ -41,8 +41,14 @@ class User(BaseModel):
             cur = User.aggregate([
                 {"$lookup": {
                     "from": "item",
-                    "foreignField": "_id",
-                    "localField": 'item_list.id',
+                    "let": {
+                        "items": "$item_list"
+                    },
+                    "pipeline": [
+                        {"$match": {"$expr": {"$in": ["$_id", "$$items.id"]}}},
+                        {"$project": {"name": "$name", 'rate': "$rate", "payout": "$payout"}},
+                        # {"$addFields": {"last_run": "$$list_item.created_at"}}
+                    ],
                     "as": "inventory"
                 }},
                 {"$match": {"_id": doc['_id']}}

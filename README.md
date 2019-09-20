@@ -35,6 +35,11 @@ Commands a long and short hand form both will be shown below.
 ```
 ?wage
 ```
+##### Collect Qoins generated from items
+```
+?collect
+?c
+```
 ##### Check your item inventory
 ```
 ?inventory

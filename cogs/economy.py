@@ -1,6 +1,5 @@
 import asyncio
-from datetime import datetime
-
+from datetime import datetime, timedelta
 import discord
 from discord.ext import commands
 from prodict import Prodict
@@ -22,7 +21,6 @@ class Economy(commands.Cog):
         in_pocket = user.game.in_pocket
         invested = sum(c['cost'] for c in user.game.portfolio.coins)
         total = number.round_up(money + in_pocket + invested, 2)
-
         mention = ctx.author.mention
         await ctx.send(
             f'```py\nIn Pocket: {in_pocket}\nBank: {money}\nInvested: {"{0:.2f}".format(invested)}\nTotal: {total}\n\nQoins represent a USD value by default, the balances will convert depending upon what quote currency you have set on your account.  Use the "{self.config.prefix[0]}sq <currency symbol>" command to change it```{mention}')
@@ -43,17 +41,16 @@ class Economy(commands.Cog):
 
         await ctx.send(f'```fix\nSet your quote currency to {symbol.upper()}\n```')
 
-
     @commands.command(aliases=['inv'])
     async def inventory(self, ctx):
         """ Check your item inventory """
         user = await author.get(ctx.author)
+        mention = ctx.author.mention
         item_list = ''
         if user.inventory:
             for item in user.inventory:
                 item = Prodict.from_dict(item)
                 item_list += f'\'{item.name}\'\n'
-        mention = ctx.author.mention
         await ctx.send(
             f'```py\nInventory:\n{item_list}```{mention}')
 
@@ -62,7 +59,7 @@ class Economy(commands.Cog):
         """ Spend your time in the wage cage and collect your ration.\n100 hours max accumulation per collection. """
         user = await author.get(ctx.author)
         now = datetime.now()
-        diff = now - user.game.last_wage if user.game.last_wage else datetime.now()
+        diff = now - user.game.last_wage
         wage_multiplier = int((diff.seconds / 60 / 60))
         wage_earned = int(user.game.wage * wage_multiplier)
         minutes = float(60 - diff.seconds / 60)
@@ -82,6 +79,39 @@ class Economy(commands.Cog):
 
         await ctx.send(
             f'```diff\n+{wage_earned} {self.config.economy.currency_name} You were in the cage for {wage_multiplier if wage_multiplier < 100 else 100} hours.  You have to wait at least 1 hour to collect again.\n```{ctx.author.mention}')
+
+    @commands.command(name="collect", aliases=['c'])
+    async def collect(self, ctx):
+        """ Collect Qoins generated from items """
+        user = await author.get(ctx.author)
+        now = datetime.now()
+        total_earned = 0
+        item_earned = ''
+        for i, item in enumerate(user.item_list):
+            _item = Prodict.from_dict(Item.find_one({"_id": item['id']}))
+
+            if item['last_run'] is None:
+                earned = int(_item.payout)
+                item_earned += f'\n+{earned} {self.config.economy.currency_name} - {_item.name}'
+                total_earned += earned
+                user.item_list[i]['last_run'] = datetime.now()
+            else:
+                diff = now - item['last_run']
+                wage_multiplier = int((diff.seconds / 60))
+                if wage_multiplier < _item.rate:
+                    wait_time = _item.rate - wage_multiplier
+                    item_earned += f'\n{_item.name} - not ready {wait_time} minutes left'
+                    continue
+                earned = int(_item.payout * wage_multiplier)
+                item_earned += f'\n+{earned} {self.config.economy.currency_name} - {_item.name}'
+                total_earned += earned
+                user.item_list[i]['last_run'] = datetime.now()
+
+        user.game.in_pocket = int(user.game.in_pocket + total_earned)
+        User.save(user)
+
+        await ctx.send(
+            f'```diff\nTotal: {total_earned} {self.config.economy.currency_name}\n{item_earned}\n```{ctx.author.mention}')
 
     @commands.group(name="deposit", aliases=['dep'], invoke_without_command=True)
     async def _deposit(self, ctx, amount: float):
@@ -260,7 +290,7 @@ class Economy(commands.Cog):
     @commands.check(repo.is_owner)
     async def _bestow(self, ctx, user: discord.Member, amount: float):
         user = User.find_one({'user_id': str(user.id)})
-        user['game']['money'] = amount
+        user['game']['money'] += amount
         User.save(user)
         await ctx.send(
             f'```css\n{amount} {self.config.economy.currency_name} has been bestowed upon {user["name"]}\n```')
@@ -269,11 +299,12 @@ class Economy(commands.Cog):
     @commands.check(repo.is_owner)
     async def _reset(self, ctx, user: discord.Member):
         user = User.find_one({'user_id': str(user.id)})
+        user['item_list'] = []
         user['game'] = {
             'in_pocket': 0,
             'money': self.config.economy.start_money,
             'wage': self.config.economy.start_wage,
-            'last_wage': datetime.now(),
+            'last_wage': datetime.now() - timedelta(hours=1),
             'portfolio': {
                 'coins': [],
                 'transactions': []
