@@ -91,6 +91,17 @@ The price list command saves a list of symbols so you don't have to type them ou
 ## Game and Store
 ### How the game works
 The game starts each player with 250 Qoins, the bot's native currency which represent USD value by default. Each player has a starting wage of 25 Qoins per hour and can be collected at least 1 hour a players last collection and can accumulate for 100 hours max.  Players can paper trade using the Qoins and build up their networth.  Items can also be purchased in the store which will either increase a players wage or certain items like miners can be purchased for side income.  The goal is simply to have the highest networth.  
+### Portfolio commands
+##### View your portfolio
+```
+?portfolio
+?po
+```
+##### View a portfolio holding
+```
+?portfolio holding <coin_symbol>
+?po h <coin_symbol>
+```
 ### Store commands
 ##### View a list of available stores
 ```
@@ -123,15 +134,4 @@ The game starts each player with 250 Qoins, the bot's native currency which repr
 ```
 ?sell coin <amount> <coin_symbol>
 ?s c <amount> <coin_symbol>
-```
-### Portfolio commands
-##### View your portfolio
-```
-?portfolio
-?po
-```
-##### View a portfolio holding
-```
-?portfolio holding <coin_symbol>
-?po h <coin_symbol>
 ```
