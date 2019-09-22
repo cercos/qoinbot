@@ -53,12 +53,14 @@ async def _fetch(url):
     return await http.get(url, res_method='json')
 
 
-async def portfolio_value(user, coin_list):
+async def portfolio_value(user, coin_list, quote_to=None):
     value = 0
     if user['game']['portfolio']['coins']:
         for coin in user['game']['portfolio']['coins']:
+            if quote_to is None:
+                quote_to = user["quote_to"]
             coin = Prodict.from_dict(coin)
-            value += await get_value(coin.symbol, user['quote_to'], coin.name, coin.amount, coin_list)
+            value += await get_value(coin.symbol, quote_to, coin.name, coin.amount, coin_list)
     return value
 
 

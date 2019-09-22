@@ -28,16 +28,20 @@ class Store(commands.Cog):
         if any(i['id'] == item.id for i in user.item_list):
             return await ctx.send(f'```fix\nYou already own item "{item_name}"\n```')
 
-        total_cost = int(item.price)
+        if user['quote_to'] != 'USD':
+            rates = await coins.rate_convert()
+            item.price = rates[user['quote_to']] * item.price
+            item.payout = rates[user['quote_to']] * item.payout
 
-        if user.game.in_pocket < total_cost:
+        if user.game.in_pocket < item.price:
             return await ctx.send(f'```fix\nYou don\'t have enough money in your pocket\n```')
 
-        user.game.in_pocket = round(user.game.in_pocket - total_cost)
+        user.game.in_pocket = round(user.game.in_pocket - item.price)
         user.item_list.append({
             'id': item.id,
-            'last_run': None
+            'last_run': datetime.now()
         })
+
         User.save(user)
         await ctx.send(f'```css\nYou bought an item\n```')
 
@@ -177,15 +181,14 @@ class Store(commands.Cog):
 
         user['game']['in_pocket'] = 0
         User.save(user)
-        await ctx.send(f'```css\nYou bought {format(coin_amount, ".8f")} {symbol.upper()}{" - " + coin["name"] if multiple else ""}\n```')
+        await ctx.send(
+            f'```css\nYou bought {format(coin_amount, ".8f")} {symbol.upper()}{" - " + coin["name"] if multiple else ""}\n```')
 
     @commands.group(name="sell", aliases=['s'], invoke_without_command=True)
     async def _sell(self, ctx, item_name: str):
         """ Sell an item from store """
         user = await author.get(ctx.author)
-        if item_name == 'del':
-            user.item_list = []
-            User.save(user)
+
         await ctx.send(f'```css\nSelling items coming soon\n```')
 
     @_sell.group(name="coin", aliases=['c'], invoke_without_command=True)
@@ -217,7 +220,9 @@ class Store(commands.Cog):
                         return await ctx.send(f'```fix\nYou cancelled the sell\n```{mention}')
                     if not selected.isdigit() or (int(selected) - 1) not in range(len(has_dupes)):
                         return await ctx.send(f'```fix\nInvalid selection\n```{mention}')
-                    coin = list(filter(lambda c: c['symbol'] == symbol.upper() and c['name'] == has_dupes[int(selected) - 1], coin_prices))
+                    coin = list(
+                        filter(lambda c: c['symbol'] == symbol.upper() and c['name'] == has_dupes[int(selected) - 1],
+                               coin_prices))
             elif len(has_dupes) > 0:
                 coin = list(filter(lambda c: c['symbol'] == symbol.upper() and c['name'] == has_dupes[0], coin_prices))
             else:
@@ -230,7 +235,8 @@ class Store(commands.Cog):
             coin = coin[0]
             pcoin = coins.portfolio_has(user, symbol.upper(), coin["name"])
             if not pcoin:
-                return await ctx.send(f'```fix\nYou do not hold any {symbol.upper()}{" - " + coin["name"] if multiple else ""}\n```')
+                return await ctx.send(
+                    f'```fix\nYou do not hold any {symbol.upper()}{" - " + coin["name"] if multiple else ""}\n```')
 
             k = pcoin['key']
             total_holdings = user['game']['portfolio']['coins'][k]['amount']
@@ -319,46 +325,75 @@ class Store(commands.Cog):
         user['game']['in_pocket'] += round(earned)
         tx_del_ids = []
         for i in range(len(user['game']['portfolio']['transactions'])):
-            if user['game']['portfolio']['transactions'][i]['symbol'] == symbol.upper() and user['game']['portfolio']['transactions'][i]['name'] == coin['name']:
+            if user['game']['portfolio']['transactions'][i]['symbol'] == symbol.upper() and \
+                    user['game']['portfolio']['transactions'][i]['name'] == coin['name']:
                 tx_del_ids.append(i)
         for ele in sorted(tx_del_ids, reverse=True):
             del user['game']['portfolio']['transactions'][ele]
         del user['game']['portfolio']['coins'][k]
         User.save(user)
-        await ctx.send(f'```css\nYou sold {total_holdings} {symbol.upper()}{" - " + coin["name"] if len(has_dupes) > 1 else ""} for {"{0:.2f}".format(earned)}\n```{mention}')
+        await ctx.send(
+            f'```css\nYou sold {total_holdings} {symbol.upper()}{" - " + coin["name"] if len(has_dupes) > 1 else ""} for {"{0:.2f}".format(earned)}\n```{mention}')
 
     @commands.command(aliases=['v'])
-    async def view(self, ctx, store_name: str = None):
+    async def view(self, ctx, store=None):
         """ View store """
         user = await author.get(ctx.author)
         store_list = ''
-        if store_name is None:
-            stores = StoreModel.find()
+        stores = StoreModel.find()
+        loaded_store = None
+        if store is None:
             if not stores:
                 return await ctx.send(f'```fix\nThere are no stores setup"\n```')
-            for store in stores:
-                store = Prodict.from_dict(store)
-                item_count = len(store.inventory)
-                store_list += f'\nName{" " * (10 - len("Name"))}Item Count{" " * (10 - len("item"))}Description\n{store.name}{" " * (10 - len("Name"))}{item_count}{" " * (10 - len(str(item_count)))}{store.about}'
-            await ctx.send(f'```diff\nStore list:\n{store_list}\n```')
+            if stores.count() == 1:
+                loaded_store = Prodict.from_dict(stores[0])
+                item_list = ''
+                for i, item in enumerate(loaded_store.inventory):
+                    item = Prodict.from_dict(item)
+                    if user['quote_to'] != 'USD':
+                        rates = await coins.rate_convert()
+                        item.price = rates[user['quote_to']] * item.price
+                        item.payout = rates[user['quote_to']] * item.payout
+                    formatted_price = currency.symbol(user["quote_to"]) + '{0:.2f}'.format(item.price)
+                    formatted_payout = "{0:.2f}".format(item.payout)
+                    item_list += f'{i + 1}. {item.name}{" " * (18 - len(item.name))}{formatted_price}{" " * (10 - len(formatted_price))}{item.about.format(payout=formatted_payout)}\n'
+                return await ctx.send(
+                    f'```py\n{user.quote_to}\n{loaded_store.name}\n\nItem{" " * (21 - len("item"))}Price{" " * (10 - len("price"))}Description\n\n{item_list}```')
+            for i, _store in enumerate(stores):
+                _store = Prodict.from_dict(_store)
+                item_count = len(_store.inventory)
+                store_list += f'\n{i + 1}. {_store.name}{" " * (12 - len("Name"))}{item_count}{" " * (10 - len(str(item_count)))}{_store.about}'
+            store_list_head = f'\nName{" " * (15 - len("Name"))}Item Count{" " * (10 - len("item"))}Description'
+
+            await ctx.send(f'```diff\nStore list:\n{store_list_head}{store_list}\n```')
             return await ctx.send_help('view')
 
-        store = StoreModel.find_one({'name': store_name})
+        store_list = []
+        for i, _store in enumerate(stores):
+            store_list.append(_store)
+        if store.isnumeric():
+            if int(store) - 1 in range(len(store_list)):
+                loaded_store = store_list[int(store) - 1]
+        else:
+            loaded_store = StoreModel.find_one({'name': store})
 
-        if not store:
-            return await ctx.send(f'```fix\nCould not find store "{store_name}"\n```')
+        if not loaded_store:
+            return await ctx.send(f'```fix\nCould not find store "{store}"\n```')
 
-        store = Prodict.from_dict(store)
+        loaded_store = Prodict.from_dict(loaded_store)
         item_list = ''
-        for item in store.inventory:
+        for i, item in enumerate(loaded_store.inventory):
             item = Prodict.from_dict(item)
             if user['quote_to'] != 'USD':
                 rates = await coins.rate_convert()
                 item.price = rates[user['quote_to']] * item.price
+                item.payout = rates[user['quote_to']] * item.payout
             formatted_price = currency.symbol(user["quote_to"]) + '{0:.2f}'.format(item.price)
-            item_list += f'{item.name}{" " * (18 - len(item.name))}{formatted_price}{" " * (10 - len(formatted_price))}{item.about}\n'
+            formatted_payout = "{0:.2f}".format(item.payout)
+
+            item_list += f'{i + 1}. {item.name}{" " * (18 - len(item.name))}{formatted_price}{" " * (10 - len(formatted_price))}{item.about.format(payout=formatted_payout)}\n'
         await ctx.send(
-            f'```diff\n{store.name}\n{user.quote_to}\n\nItem{" " * (18 - len("item"))}Price{" " * (10 - len("price"))}Description\n\n{item_list}```')
+            f'```py\n{user.quote_to}\n{loaded_store.name}\n\nItem{" " * (21 - len("item"))}Price{" " * (10 - len("price"))}Description\n\n{item_list}```')
 
 
 def setup(bot):

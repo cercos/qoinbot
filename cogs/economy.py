@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import discord
 from discord.ext import commands
 from prodict import Prodict
-
+import currency
 from utils import default, author, repo, coins, number
 from models import User, Store, Item
 
@@ -14,18 +14,21 @@ class Economy(commands.Cog):
         self.config = default.get("config.json")
 
     @commands.command(name='balance', aliases=['bal'])
+    @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
     async def balance(self, ctx):
         """ Check your balance """
         user = await author.get(ctx.author)
-        money = user.game.money
-        in_pocket = user.game.in_pocket
-        invested = sum(c['cost'] for c in user.game.portfolio.coins)
-        total = number.round_up(money + in_pocket + invested, 2)
+        # coin_list = await coins.get_coins(user['quote_to'])
+        money = float('{0:.2f}'.format(user.game.money))
+        in_pocket = float('{0:.2f}'.format(user.game.in_pocket))
+        # portfolio = float('{0:.2f}'.format(await coins.portfolio_value(user, coin_list)))
+        # networth = float('{0:.2f}'.format(number.round_up(money + in_pocket + portfolio, 2)))
         mention = ctx.author.mention
         await ctx.send(
-            f'```py\nIn Pocket: {in_pocket}\nBank: {money}\nInvested: {"{0:.2f}".format(invested)}\nTotal: {total}\n\nQoins represent a USD value by default, the balances will convert depending upon what quote currency you have set on your account.  Use the "{self.config.prefix[0]}sq <currency symbol>" command to change it```{mention}')
+            f'```py\n{user.quote_to}\nIn Pocket: {currency.symbol(user["quote_to"])}{in_pocket}\nBank: {currency.symbol(user["quote_to"])}{money}\n\nQoins represent a USD value by default, the balances will convert depending upon what quote currency you have set on your account.  Use the "{self.config.prefix[0]}sq <currency symbol>" command to change it```{mention}')
 
     @commands.command(name='setquote', aliases=['sq'])
+    @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
     async def set_quote(self, ctx, symbol):
         """ Set the quote currency prices are displayed in for your account.\n\nAvailable:\nUSD, EUR, PLN, KRW, GBP, CAD, JPY, RUB, TRY, NZD, AUD, CHF, HKD, SGD, PHP, MXN, BRL, THB, CNY, CZK, DKK, HUF, IDR, ILS, INR, MYR, NOK, SEK, ZAR, ISK """
         user = await author.get(ctx.author)
@@ -42,6 +45,7 @@ class Economy(commands.Cog):
         await ctx.send(f'```fix\nSet your quote currency to {symbol.upper()}\n```')
 
     @commands.command(aliases=['inv'])
+    @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
     async def inventory(self, ctx):
         """ Check your item inventory """
         user = await author.get(ctx.author)
@@ -55,41 +59,46 @@ class Economy(commands.Cog):
             f'```py\nInventory:\n{item_list}```{mention}')
 
     @commands.command(name="wage")
+    @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
     async def wage(self, ctx):
         """ Spend your time in the wage cage and collect your ration.\n100 hours max accumulation per collection. """
         user = await author.get(ctx.author)
         now = datetime.now()
         diff = now - user.game.last_wage
-        wage_multiplier = int((diff.seconds / 60 / 60))
-        wage_earned = int(user.game.wage * wage_multiplier)
+        wage_multiplier = diff.seconds / 60 / 60
+        wage_earned = float('{0:.2f}'.format(user.game.wage * wage_multiplier))
         minutes = float(60 - diff.seconds / 60)
         seconds = (minutes - int(minutes)) * 60
         if wage_multiplier < 1:
+
             return await ctx.send(
                 f'```fix\nWagey wagey, you\'re in the cagey.  You can collect again in {int(minutes)}:{str(int(seconds)).zfill(2)}\n```{ctx.author.mention}')
         if wage_multiplier > 100:
-            actual = wage_multiplier
             wage_multiplier = 100
             wage_earned = int(user.game.wage * wage_multiplier)
 
-        user.game.in_pocket = int(user.game.in_pocket + wage_earned)
+        user.game.in_pocket = float('{0:.2f}'.format(user.game.in_pocket + wage_earned))
         user.game.last_wage = datetime.now()
         user.game.total_wages = wage_earned + user.game.total_wages if user.game.total_wages else 0
         User.save(user)
-
+        wage_multiplier = float('{0:.2f}'.format(wage_multiplier))
         await ctx.send(
             f'```diff\n+{wage_earned} {self.config.economy.currency_name} You were in the cage for {wage_multiplier if wage_multiplier < 100 else 100} hours.  You have to wait at least 1 hour to collect again.\n```{ctx.author.mention}')
 
     @commands.command(name="collect", aliases=['c'])
+    @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
     async def collect(self, ctx):
         """ Collect Qoins generated from items """
         user = await author.get(ctx.author)
+        mention = ctx.author.mention
         now = datetime.now()
         total_earned = 0
         item_earned = ''
         for i, item in enumerate(user.item_list):
             _item = Prodict.from_dict(Item.find_one({"_id": item['id']}))
-
+            if user.quote_to != 'USD':
+                rates = await coins.rate_convert('USD')
+                _item.payout = rates[user.quote_to] * _item.payout
             if item['last_run'] is None:
                 earned = int(_item.payout)
                 item_earned += f'\n+{earned} {self.config.economy.currency_name} - {_item.name}'
@@ -97,23 +106,24 @@ class Economy(commands.Cog):
                 user.item_list[i]['last_run'] = datetime.now()
             else:
                 diff = now - item['last_run']
-                wage_multiplier = int((diff.seconds / 60))
-                if wage_multiplier < _item.rate:
-                    wait_time = _item.rate - wage_multiplier
-                    item_earned += f'\n{_item.name} - not ready {wait_time} minutes left'
+                item_multiplier = diff.seconds / 60
+                if item_multiplier < _item.rate:
+                    wait_time = int(_item.rate - item_multiplier)
+                    item_earned += f'\n{_item.name} - {wait_time} minutes left'
                     continue
-                earned = int(_item.payout * wage_multiplier)
+                earned = float('{0:.2f}'.format((_item.payout * (item_multiplier / _item.rate))))
                 item_earned += f'\n+{earned} {self.config.economy.currency_name} - {_item.name}'
                 total_earned += earned
                 user.item_list[i]['last_run'] = datetime.now()
 
-        user.game.in_pocket = int(user.game.in_pocket + total_earned)
+        user.game.in_pocket = user.game.in_pocket + total_earned
         User.save(user)
-
+        empty_message = f'You don\'t have any items'
         await ctx.send(
-            f'```diff\nTotal: {total_earned} {self.config.economy.currency_name}\n{item_earned}\n```{ctx.author.mention}')
+            f'```diff\n+{total_earned} {self.config.economy.currency_name} collected from items\n``````diff\n{item_earned if item_earned else empty_message}\n```{mention}')
 
     @commands.group(name="deposit", aliases=['dep'], invoke_without_command=True)
+    @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
     async def _deposit(self, ctx, amount: float):
         """ Deposit pocket money into the bank account """
         if ctx.invoked_subcommand is None:
@@ -133,6 +143,7 @@ class Economy(commands.Cog):
                 f'```diff\n+{amount} {self.config.economy.currency_name} were transferred to your bank account \n```{ctx.author.mention}')
 
     @_deposit.command(name="all", aliases=['a'])
+    @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
     async def deposit_all(self, ctx):
         user = await author.get(ctx.author)
         pocket = user.game.in_pocket
@@ -147,6 +158,7 @@ class Economy(commands.Cog):
             f'```diff\n+{pocket} {self.config.economy.currency_name} were transferred to your bank account \n```{ctx.author.mention}')
 
     @commands.group(name="withdrawal", aliases=['with'], invoke_without_command=True)
+    @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
     async def _withdrawal(self, ctx, amount: float):
         """ Withdrawal money from your bank account to your pocket """
         if ctx.invoked_subcommand is None:
@@ -158,7 +170,7 @@ class Economy(commands.Cog):
             if amount > user.game.money:
                 return await ctx.send(
                     f'```fix\nYou don\'t have enough money in your bank. Available: {user.game.money}\n```{ctx.author.mention}')
-            user.game.in_pocket = user.game.in_pocket + amount
+            user.game.in_pocket = user.game.in_pocket + float('{0:.2f}'.format(amount))
             user.game.money = user.game.money - amount
             User.save(user)
 
@@ -166,6 +178,7 @@ class Economy(commands.Cog):
                 f'```diff\n+{amount} {self.config.economy.currency_name} transferred to your pocket\n```{ctx.author.mention}')
 
     @_withdrawal.command(name="all", aliases=['a'])
+    @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
     async def withdrawal_all(self, ctx):
         user = await author.get(ctx.author)
         money = user.game.money
@@ -180,6 +193,7 @@ class Economy(commands.Cog):
             f'```diff\n+{money} {self.config.economy.currency_name} transferred to your pocket\n```{ctx.author.mention}')
 
     @commands.command(name='give')
+    @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
     async def give(self, ctx, amount: float, user: discord.Member):
         """ Give a user Qoins from your account """
         giver = await author.get(ctx.author)
@@ -199,7 +213,7 @@ class Economy(commands.Cog):
     async def _create(self, ctx):
         """ Create operations """
         if ctx.invoked_subcommand is None:
-            await ctx.send_help("bank")
+            await ctx.send_help("create")
 
     @_create.command(name="store", aliases=['s'])
     @commands.check(repo.is_owner)
@@ -326,6 +340,13 @@ class Economy(commands.Cog):
                 return await ctx.send(f'```css\nReset user "{user["name"]}"\n```')
             else:
                 return await ctx.send(f'```fix\nCanceled reset"\n```')
+
+    @commands.group(name='hack')
+    @commands.check(repo.is_owner)
+    async def _hack(self, ctx, victim: str):
+        """ Attempts to "hack" another user """
+        user = await author.get(ctx.author)
+        victim = User.find_one()
 
 
 def setup(bot):

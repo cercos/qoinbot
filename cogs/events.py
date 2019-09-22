@@ -6,6 +6,8 @@ import chalk
 from datetime import datetime
 from discord.ext import commands
 from discord.ext.commands import errors
+
+from models import Guild
 from utils import default
 
 
@@ -40,13 +42,19 @@ class Events(commands.Cog):
             pass
 
         elif isinstance(err, errors.CommandOnCooldown):
-            await ctx.send(f"This command is on cooldown... try again in {err.retry_after:.2f} seconds.")
+            await ctx.send(f"```fix\nThis command is on cooldown... try again in {err.retry_after:.2f} seconds.```")
 
         elif isinstance(err, errors.CommandNotFound):
             pass
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
+        guild_template = {
+            'guild_id': str(guild.id),
+            'name': guild.name,
+        }
+        guild_id = Guild.insert_one(guild_template).inserted_id
+        print(chalk.cyan(f"Joined Guild > ") + chalk.yellow(f'{guild.name}'))
         if not self.config.join_message:
             return
 

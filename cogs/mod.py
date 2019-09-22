@@ -2,6 +2,7 @@ import discord
 import re
 import asyncio
 from discord.ext import commands
+
 from utils import permissions, default
 
 
@@ -106,7 +107,8 @@ class Moderator(commands.Cog):
         try:
             therole = discord.Object(id=message[0])
         except IndexError:
-            return await ctx.send("Are you sure you've made a role called **Muted**? Remember that it's case sensetive too...")
+            return await ctx.send(
+                "Are you sure you've made a role called **Muted**? Remember that it's case sensetive too...")
 
         try:
             await member.add_roles(therole, reason=default.responsible(ctx.author, reason))
@@ -126,7 +128,8 @@ class Moderator(commands.Cog):
         try:
             therole = discord.Object(id=message[0])
         except IndexError:
-            return await ctx.send("Are you sure you've made a role called **Muted**? Remember that it's case sensetive too...")
+            return await ctx.send(
+                "Are you sure you've made a role called **Muted**? Remember that it's case sensetive too...")
 
         try:
             await member.remove_roles(therole, reason=default.responsible(ctx.author, reason))
@@ -144,7 +147,8 @@ class Moderator(commands.Cog):
 
     @find.command(name="playing")
     async def find_playing(self, ctx, *, search: str):
-        loop = [f"{i} | {i.activity.name} ({i.id})" for i in ctx.guild.members if i.activity if (search.lower() in i.activity.name.lower()) and (not i.bot)]
+        loop = [f"{i} | {i.activity.name} ({i.id})" for i in ctx.guild.members if i.activity if
+                (search.lower() in i.activity.name.lower()) and (not i.bot)]
         await default.prettyResults(
             ctx, "playing", f"Found **{len(loop)}** on your search for **{search}**", loop
         )
@@ -158,7 +162,8 @@ class Moderator(commands.Cog):
 
     @find.command(name="nickname", aliases=["nick"])
     async def find_nickname(self, ctx, *, search: str):
-        loop = [f"{i.nick} | {i} ({i.id})" for i in ctx.guild.members if i.nick if (search.lower() in i.nick.lower()) and not i.bot]
+        loop = [f"{i.nick} | {i} ({i.id})" for i in ctx.guild.members if i.nick if
+                (search.lower() in i.nick.lower()) and not i.bot]
         await default.prettyResults(
             ctx, "name", f"Found **{len(loop)}** on your search for **{search}**", loop
         )
