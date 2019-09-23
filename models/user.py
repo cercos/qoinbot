@@ -29,7 +29,7 @@ class User(BaseModel):
             )),
             wage=NumberField(default=config.economy.start_wage),
             total_wages=NumberField(default=0),
-            last_wage=DateTimeField(default=datetime.now() - timedelta(hours=1)),
+            last_wage=DateTimeField(default=None),
             created_at=DateTimeField(default=datetime.now())
         ))
     ))

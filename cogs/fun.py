@@ -14,7 +14,7 @@ class FunCommands(commands.Cog):
     async def eightball(self, ctx, *, question: commands.clean_content):
         """ Consult 8ball to receive an answer """
         answer = random.choice(lists.ballresponse)
-        await ctx.send(f"🎱 **Question:** {question}\n**Answer:** {answer}")
+        await ctx.send(f"```diff\nQuestion: {question}\n+Answer: {answer}```")
 
     async def randomimageapi(self, ctx, url, endpoint):
         try:
@@ -28,9 +28,10 @@ class FunCommands(commands.Cog):
     async def coinflip(self, ctx):
         """ Coinflip! """
         coinsides = ['Heads', 'Tails']
-        await ctx.send(f"**{ctx.author.name}** flipped a coin and got **{random.choice(coinsides)}**!")
+        await ctx.send(f"```css\nFlipped a coin: {random.choice(coinsides)}!```")
 
     @commands.command()
+    @commands.is_nsfw()
     @commands.cooldown(rate=1, per=2.0, type=commands.BucketType.user)
     async def urban(self, ctx, *, search: str):
         """ Find the 'best' definition to your words """
@@ -51,7 +52,7 @@ class FunCommands(commands.Cog):
                 definition = definition.rsplit(' ', 1)[0]
                 definition += '...'
 
-            await ctx.send(f"📚 Definitions for **{result['word']}**```fix\n{definition}```")
+            await ctx.send(f"📚 Definitions for **{result['word']}**```diff\n{definition}```")
 
 
 def setup(bot):

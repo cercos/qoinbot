@@ -27,7 +27,7 @@ class Admin(commands.Cog):
         if ctx.author.id == 86477779717066752:
             return await ctx.send(f"Well kinda **{ctx.author.name}**.. you still own the source code")
 
-        await ctx.send(f"no, heck off {ctx.author.name}")
+        await ctx.send(f"No, {ctx.author.name}")
 
     @commands.command()
     @commands.check(repo.is_owner)
@@ -38,13 +38,13 @@ class Admin(commands.Cog):
             self.bot.load_extension(f"cogs.{name}")
         except Exception as e:
             return await ctx.send(f"```\n{e}```")
-        await ctx.send(f"Reloaded extension **{name}.py**")
+        await ctx.send(f"```css\nReloaded extension {name}.py\n```")
 
     @commands.command()
     @commands.check(repo.is_owner)
     async def reboot(self, ctx):
         """ Reboot the bot """
-        await ctx.send('Rebooting now...')
+        await ctx.send('```fix\nRebooting now...\n```')
         time.sleep(1)
         await self.bot.logout()
 
@@ -56,7 +56,7 @@ class Admin(commands.Cog):
             self.bot.load_extension(f"cogs.{name}")
         except Exception as e:
             return await ctx.send(f"```diff\n- {e}```")
-        await ctx.send(f"Loaded extension **{name}.py**")
+        await ctx.send(f"```css\nLoaded extension {name}.py\n```")
 
     @commands.command()
     @commands.check(repo.is_owner)
@@ -66,7 +66,7 @@ class Admin(commands.Cog):
             self.bot.unload_extension(f"cogs.{name}")
         except Exception as e:
             return await ctx.send(f"```diff\n- {e}```")
-        await ctx.send(f"Unloaded extension **{name}.py**")
+        await ctx.send(f"```css\nUnloaded extension {name}.py\n```")
 
     @commands.group()
     @commands.check(repo.is_owner)
@@ -134,6 +134,7 @@ class Admin(commands.Cog):
             await ctx.send(err)
         except TypeError:
             await ctx.send("You need to either provide an image URL or upload one with the command")
+
 
     @commands.command(aliases=['exec'])
     @commands.check(repo.is_owner)

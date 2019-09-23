@@ -1,12 +1,14 @@
 import asyncio
 from datetime import datetime
+from typing import Union
 
 import discord
 from discord.ext import commands
+from discord.utils import get
 from prodict import Prodict
 import currency
 from toolz import curried
-
+import pprint
 from utils import default, author, coins, repo
 from models import User
 from millify import millify
@@ -18,7 +20,7 @@ class Game(commands.Cog):
         self.config = default.get("config.json")
 
     @commands.group(name='portfolio', aliases=['po'], invoke_without_command=True)
-    @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
+    @commands.cooldown(rate=2, per=5.0, type=commands.BucketType.user)
     async def _portfolio(self, ctx, page: int = 1):
         """ Check your portfolio """
         if ctx.invoked_subcommand is None:
@@ -26,7 +28,6 @@ class Game(commands.Cog):
             if not user.game.portfolio.coins:
                 await ctx.send(f'```fix\nYou don\'t have any coins in your portfolio```')
                 return await ctx.send_help('buy coin')
-
             per_page = self.config.game.portfolio_per_page
             page_count = 1
             coin_list = await coins.get_coins(user['quote_to'])
@@ -40,10 +41,11 @@ class Game(commands.Cog):
             if len(pcoins) > per_page:
                 pcoins = [pcoins[i:i + per_page] for i in range(0, len(pcoins), per_page)]
                 page_count = len(pcoins)
-
-                if page > page_count:
-                    return
                 user.game.portfolio.coins = pcoins[page - 1]
+
+            if page == 0 or page > page_count:
+                return
+            message = await ctx.send(f'```Fetching prices...```')
 
             for coin in user.game.portfolio.coins:
                 coin = Prodict.from_dict(coin)
@@ -73,13 +75,74 @@ class Game(commands.Cog):
             balance = f'\nIn Pocket: {in_pocket}\nBank: {in_bank}\nNet worth: {portfolio_value}'
             table_header = f'Symbol{" " * (8 - len("Symbol"))}Holdings{" " * (12 - len("Holdings"))}Value{" " * (10 - len("Value"))}%Change'
             mention = ctx.author.mention
-            return await ctx.send(
-                f'```diff\n{user["quote_to"]}\n{table_header}\n{portfolio}\n{" " * 15}Page {page} of {page_count}``````diff\n{portfolio_info}\n``````py\n{balance}```{mention}')
+            return await message.edit(content=
+                                      f'```diff\n{user["quote_to"]}\n{table_header}\n{portfolio}\n{" " * 15}Page {page} of {page_count}``````diff\n{portfolio_info}\n``````py\n{balance}```{mention}')
 
-
-    @_portfolio.command(aliases=['h'])
+    @_portfolio.command(name='user', aliases=['u'])
     @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
-    async def holding(self, ctx, symbol: str):
+    async def portfolio_user(self, ctx, user: Union[discord.Member, str], page: int = 1):
+        """ View another users portfolio """
+
+        if not user == self.bot.user:
+            if not type(user) is discord.Member:
+                user = Prodict.from_dict(User.find_one({'name': user}))
+            else:
+                user = await author.get(user, False)
+            if not user or not user.game.portfolio.coins:
+                return await ctx.send(f'```fix\nUser has an empty portfolio```')
+            per_page = self.config.game.portfolio_per_page
+            page_count = 1
+            coin_list = await coins.get_coins(user['quote_to'])
+
+            portfolio = ''
+            total_value = await coins.portfolio_value(user, coin_list)
+            total_cost = 0
+            pcoins = user.game.portfolio.coins
+            total_cost = sum(item['cost'] for item in pcoins)
+
+            if len(pcoins) > per_page:
+                pcoins = [pcoins[i:i + per_page] for i in range(0, len(pcoins), per_page)]
+                page_count = len(pcoins)
+                user.game.portfolio.coins = pcoins[page - 1]
+
+            if page == 0 or page > page_count:
+                return
+            message = await ctx.send(f'```Fetching prices...```')
+
+            for coin in user.game.portfolio.coins:
+                coin = Prodict.from_dict(coin)
+
+                value = await coins.get_value(coin.symbol, user['quote_to'], coin.name, coin.amount, coin_list)
+                percent_change = coins.percent(coin['cost'], value)
+
+                formatted_holdings = millify(coin.amount, precision=4)
+                formatted_percent = millify(percent_change, precision=2)
+                formatted_value = millify(value, precision=2)
+
+                color = '+' if percent_change >= 0.00 else '-'
+                portfolio += f'{color}{coin.symbol}{" " * (7 - len(coin.symbol))}{formatted_holdings}{" " * (12 - len(formatted_holdings))}{currency.symbol(user["quote_to"])}{formatted_value}{" " * (9 - len(formatted_value))}%{formatted_percent}\n'
+
+            percent_change = coins.percent(total_cost, total_value)
+            percent_color = '+' if percent_change >= 0.00 else '-'
+            portfolio_value = currency.symbol(user['quote_to']) + '{0:.2f}'.format(
+                total_value + user['game']['money'] + user['game']['in_pocket'])
+
+            total_value = currency.symbol(user["quote_to"]) + '{0:.2f}'.format(total_value)
+            total_cost = currency.symbol(user["quote_to"]) + '{0:.2f}'.format(total_cost)
+            percent_change = '{0:.2f}'.format(percent_change)
+            in_bank = currency.symbol(user["quote_to"]) + '{0:.2f}'.format(user['game']['money'])
+            in_pocket = currency.symbol(user["quote_to"]) + '{0:.2f}'.format(user['game']['in_pocket'])
+
+            portfolio_info = f'Value: {total_value}\nInvested: {total_cost}\n{percent_color}%Change: %{percent_change}'
+            balance = f'\nIn Pocket: {in_pocket}\nBank: {in_bank}\nNet worth: {portfolio_value}'
+            table_header = f'Symbol{" " * (8 - len("Symbol"))}Holdings{" " * (12 - len("Holdings"))}Value{" " * (10 - len("Value"))}%Change'
+            mention = ctx.author.mention
+            return await message.edit(content=
+                                      f'```{user.name}\'s Portfolio``````diff\n{user["quote_to"]}\n{table_header}\n{portfolio}\n{" " * 15}Page {page} of {page_count}``````diff\n{portfolio_info}\n``````py\n{balance}```{mention}')
+
+    @_portfolio.command(name='holding', aliases=['h'])
+    @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
+    async def portfolio_holding(self, ctx, symbol: str):
         """ View a specific portfolio holding transactions"""
         user = await author.get(ctx.author)
         mention = ctx.author.mention
@@ -143,11 +206,11 @@ class Game(commands.Cog):
         whales = []
         # add the networth to each user
         for i, doc in enumerate(_whales):
-
             coin_list = await coins.get_coins(user['quote_to'])
 
             doc_pvalue = await coins.portfolio_value(doc, coin_list, user['quote_to'])
-            doc['game']['networth'] = float('{0:.2f}'.format(doc["game"]["money"] + doc["game"]["in_pocket"] + doc_pvalue))
+            doc['game']['networth'] = float(
+                '{0:.2f}'.format(doc["game"]["money"] + doc["game"]["in_pocket"] + doc_pvalue))
             whales.append(doc)
         whales = sorted(whales, key=curried.get_in(['game', 'networth']), reverse=True)
         if len(whales) > per_page:
@@ -157,8 +220,9 @@ class Game(commands.Cog):
         if page > page_count:
             return
         for i, doc in enumerate(whales):
+
             if int(doc['user_id']) not in owners:
-                if doc['quote_to'] != user['quote_to']:
+                if doc['name'] != self.bot.user.name:
                     rates = await coins.rate_convert(doc['quote_to'])
                     doc = await coins.convert_user_currency(doc, rates, user['quote_to'])
 

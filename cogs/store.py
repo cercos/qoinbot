@@ -251,18 +251,22 @@ class Store(commands.Cog):
             amount_left = amount
             keys_to_delete = []
             # iterate over transactions until sell amount is fulfilled
-            for i in range(len(sorted_transactions)):
-                if sorted_transactions[i]['symbol'] == symbol.upper() and sorted_transactions[i]['name'] == coin['name']:
-                    if sorted_transactions[i]['amount'] <= amount_left:
-                        cost_deductions += sorted_transactions[i]['cost']
-                        amount_left -= sorted_transactions[i]['amount']
+            for i, tx in enumerate(sorted_transactions):
+                if amount_left <= 0:
+                    continue
+                if tx['symbol'] == symbol.upper() and tx['name'] == coin[
+                    'name']:
+                    if tx['amount'] <= amount_left:
+                        cost_deductions += tx['cost']
+                        amount_left -= tx['amount']
                         keys_to_delete.append(i)
                     else:
-                        sorted_transactions[i]['amount'] -= amount_left
-                        sorted_transactions[i]['cost'] -= amount_left * sorted_transactions[i]['coin_price']
-                        cost_deductions += amount_left * sorted_transactions[i]['coin_price']
-
-            for ele in sorted(keys_to_delete, reverse=True):
+                        tx['amount'] -= amount_left
+                        tx['cost'] -= amount_left * tx['coin_price']
+                        cost_deductions += amount_left * tx['coin_price']
+                        amount_left = 0
+                sorted_transactions[i] = tx
+            for ele in keys_to_delete:
                 del sorted_transactions[ele]
             user['game']['portfolio']['transactions'] = sorted_transactions
             user['game']['portfolio']['coins'][k]['amount'] -= amount

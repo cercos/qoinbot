@@ -4,6 +4,8 @@ import psutil
 import os
 from datetime import datetime
 from discord.ext import commands
+
+from models import Guild
 from utils import repo, default
 
 
@@ -42,6 +44,16 @@ class Information(commands.Cog):
             return await ctx.send(f"**Here you go {ctx.author.name} 🍻\n<{repo.invite}>**")
 
         await ctx.send(f"Hello **{ctx.author.name}**, welcome to my kingdom")
+
+    @commands.command()
+    async def prefix(self, ctx):
+        """ View the bot prefix """
+        guild = Guild.find_one({'guild_id': str(ctx.guild.id)})
+        custom_prefix = None
+        if guild:
+            custom_prefix = guild['prefix']
+
+        await ctx.send(f"```diff\nDefault prefix: { ','.join(self.config.prefix)}\n{'Custom server prefix: ' + custom_prefix if custom_prefix else ''}```")
 
     @commands.command(aliases=['info', 'stats', 'status'])
     async def about(self, ctx):

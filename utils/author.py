@@ -3,9 +3,11 @@ from models import User
 from prodict import Prodict
 
 
-async def get(author):
+async def get(author, create=True):
     user = User.find_one({"user_id": str(author.id)})
     if not user:
+        if create is False:
+            return False
         user_template = {
             'user_id': author.id,
             'name': author.name,

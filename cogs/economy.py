@@ -58,11 +58,13 @@ class Economy(commands.Cog):
         await ctx.send(
             f'```py\nInventory:\n{item_list}```{mention}')
 
-    @commands.command(name="wage")
+    @commands.command(name="wage", aliases=['w'])
     @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
     async def wage(self, ctx):
         """ Spend your time in the wage cage and collect your ration.\n100 hours max accumulation per collection. """
         user = await author.get(ctx.author)
+        if user.game.last_wage is None:
+            user.game.last_wage = datetime.now() - timedelta(hours=1)
         now = datetime.now()
         diff = now - user.game.last_wage
         wage_multiplier = diff.seconds / 60 / 60
@@ -107,20 +109,23 @@ class Economy(commands.Cog):
             else:
                 diff = now - item['last_run']
                 item_multiplier = diff.seconds / 60
+                earned = 0
                 if item_multiplier < _item.rate:
                     wait_time = int(_item.rate - item_multiplier)
                     item_earned += f'\n{_item.name} - {wait_time} minutes left'
                     continue
-                earned = float('{0:.2f}'.format((_item.payout * (item_multiplier / _item.rate))))
+                else:
+                    earned = float('{0:.2f}'.format((_item.payout * (item_multiplier / _item.rate))))
                 item_earned += f'\n+{earned} {self.config.economy.currency_name} - {_item.name}'
                 total_earned += earned
                 user.item_list[i]['last_run'] = datetime.now()
-
-        user.game.in_pocket = user.game.in_pocket + total_earned
-        User.save(user)
+        if float(total_earned) > 0:
+            user.game.in_pocket = user.game.in_pocket + total_earned
+            User.save(user)
         empty_message = f'You don\'t have any items'
+        total_earned = '{0:.2f}'.format(total_earned)
         await ctx.send(
-            f'```diff\n+{total_earned} {self.config.economy.currency_name} collected from items\n``````diff\n{item_earned if item_earned else empty_message}\n```{mention}')
+            f'```diff\n{"+" + total_earned if float(total_earned) > 0 else 0} {self.config.economy.currency_name} collected from items\n``````diff\n{item_earned if item_earned else empty_message}\n```{mention}')
 
     @commands.group(name="deposit", aliases=['dep'], invoke_without_command=True)
     @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
@@ -340,13 +345,6 @@ class Economy(commands.Cog):
                 return await ctx.send(f'```css\nReset user "{user["name"]}"\n```')
             else:
                 return await ctx.send(f'```fix\nCanceled reset"\n```')
-
-    @commands.group(name='hack')
-    @commands.check(repo.is_owner)
-    async def _hack(self, ctx, victim: str):
-        """ Attempts to "hack" another user """
-        user = await author.get(ctx.author)
-        victim = User.find_one()
 
 
 def setup(bot):

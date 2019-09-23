@@ -3,6 +3,7 @@ import re
 import asyncio
 from discord.ext import commands
 
+from models import Guild
 from utils import permissions, default
 
 
@@ -45,6 +46,19 @@ class Moderator(commands.Cog):
             await ctx.send(default.actionmessage("kicked"))
         except Exception as e:
             await ctx.send(e)
+
+    @commands.command()
+    @commands.guild_only()
+    @permissions.has_permissions(administrator=True)
+    async def setprefix(self, ctx, prefix: str = None):
+        """ Set a custom prefix for your server """
+        if prefix is None:
+            return await ctx.send_help('setprefix')
+        guild = Guild.find_one({'guild_id': str(ctx.guild.id)})
+        guild['prefix'] = prefix[:5]
+        Guild.save(guild)
+        print(guild)
+
 
     @commands.command(aliases=["nick"])
     @commands.guild_only()

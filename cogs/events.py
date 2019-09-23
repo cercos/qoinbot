@@ -6,7 +6,6 @@ import chalk
 from datetime import datetime
 from discord.ext import commands
 from discord.ext.commands import errors
-
 from models import Guild
 from utils import default
 
@@ -68,9 +67,25 @@ class Events(commands.Cog):
             await to_send.send(self.config.join_message)
 
     @commands.Cog.listener()
+    async def on_message(self, msg):
+        guild = Guild.find_one({'guild_id': str(msg.guild.id)})
+        if not guild:
+            guild_template = {
+                'guild_id': str(msg.guild.id),
+                'name': msg.guild.name,
+                'prefix': '?'
+            }
+            guild_id = Guild.insert_one(guild_template).inserted_id
+            guild = Guild.find_one({'guild_id': str(msg.guild.id)})
+        if not guild['prefix'] in self.config.prefix and msg.content.startswith(guild['prefix']):
+            msg.content = msg.content.replace(guild['prefix'], '?', 1)
+            await self.bot.process_commands(msg)
+
+    @commands.Cog.listener()
     async def on_command(self, ctx):
         try:
-            print(chalk.bold(chalk.cyan(f'{ctx.guild.name}')) + chalk.yellow(' > ') + chalk.bold(chalk.green(f'{ctx.author}')) + chalk.yellow(': ') + f'{ctx.message.clean_content}')
+            print(chalk.bold(chalk.cyan(f'{ctx.guild.name}')) + chalk.yellow(' > ') + chalk.bold(
+                chalk.green(f'{ctx.author}')) + chalk.yellow(': ') + f'{ctx.message.clean_content}')
         except AttributeError:
             print(chalk.yellow(f"Private message > {ctx.author} > {ctx.message.clean_content}"))
 
@@ -79,7 +94,8 @@ class Events(commands.Cog):
         if not hasattr(self.bot, 'uptime'):
             self.bot.uptime = datetime.utcnow()
 
-        print(chalk.bold(chalk.cyan('Ready: ')) + chalk.green(f'{self.bot.user}') + chalk.yellow(' | ') + chalk.bold(chalk.cyan('Servers: ')) + chalk.green(
+        print(chalk.bold(chalk.cyan('Ready: ')) + chalk.green(f'{self.bot.user}') + chalk.yellow(' | ') + chalk.bold(
+            chalk.cyan('Servers: ')) + chalk.green(
             f'{len(self.bot.guilds)}'))
         await self.bot.change_presence(activity=discord.Game(type=0, name=self.config.playing),
                                        status=discord.Status.online)
