@@ -204,14 +204,16 @@ class Game(commands.Cog):
         page_count = 1
         _whales = User.find()
         whales = []
-        # add the networth to each user
+        # add the networth to each user and remove users excluded from whale lists
         for i, doc in enumerate(_whales):
-            coin_list = await coins.get_coins(user['quote_to'])
+            if int(doc['user_id']) not in owners:
+                if doc['name'] != self.bot.user.name:
+                    coin_list = await coins.get_coins(user['quote_to'])
 
-            doc_pvalue = await coins.portfolio_value(doc, coin_list, user['quote_to'])
-            doc['game']['networth'] = float(
-                '{0:.2f}'.format(doc["game"]["money"] + doc["game"]["in_pocket"] + doc_pvalue))
-            whales.append(doc)
+                    doc_pvalue = await coins.portfolio_value(doc, coin_list, user['quote_to'])
+                    doc['game']['networth'] = float(
+                        '{0:.2f}'.format(doc["game"]["money"] + doc["game"]["in_pocket"] + doc_pvalue))
+                    whales.append(doc)
         whales = sorted(whales, key=curried.get_in(['game', 'networth']), reverse=True)
         if len(whales) > per_page:
             whales = default.divide_chunks(whales, per_page)[page - 1]
@@ -220,14 +222,10 @@ class Game(commands.Cog):
         if page > page_count:
             return
         for i, doc in enumerate(whales):
+            rates = await coins.rate_convert(doc['quote_to'])
+            doc = await coins.convert_user_currency(doc, rates, user['quote_to'])
 
-            if int(doc['user_id']) not in owners:
-                if doc['name'] != self.bot.user.name:
-                    rates = await coins.rate_convert(doc['quote_to'])
-                    doc = await coins.convert_user_currency(doc, rates, user['quote_to'])
-
-                whale_list += f'\n{i + 1}. {doc["name"]}{" " * (25 - len(doc["name"]))}{currency.symbol(user["quote_to"])}{doc["game"]["networth"]}'
-
+            whale_list += f'\n{i + 1}. {doc["name"]}{" " * (25 - len(doc["name"]))}{currency.symbol(user["quote_to"])}{doc["game"]["networth"]}'
         await ctx.send(f'```py\n{user["quote_to"]}\nBiggest whales:\n{whale_list}\n\nPage {page} of {page_count}```')
 
     @commands.group(name='remove', aliases=['rem'])

@@ -1,5 +1,5 @@
 # ![alt text](qoinbot.png "Qoinbot") Qoinbot
-A cryptocurrency Discord super bot
+A cryptocurrency super bot with paper trading
 
 Need help? Visit the server: https://discord.gg/QH2vSmU
 
@@ -94,8 +94,13 @@ The game starts each player with 250 Qoins, the bot's native currency which repr
 ### Portfolio commands
 ##### View your portfolio
 ```
-?portfolio
-?po
+?portfolio [page=1]
+?po [page=1]
+```
+##### View another users portfolio
+```
+?portfolio user <user> [page=1]
+?po u <user> [page=1]
 ```
 ##### View a portfolio holding
 ```
