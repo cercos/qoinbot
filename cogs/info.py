@@ -49,11 +49,11 @@ class Information(commands.Cog):
     async def prefix(self, ctx):
         """ View the bot prefix """
         guild = Guild.find_one({'guild_id': str(ctx.guild.id)})
-        custom_prefix = None
+        prefix = self.config.prefix
         if guild:
-            custom_prefix = guild['prefix']
+            prefix = guild['prefix']
 
-        await ctx.send(f"```diff\nDefault prefix: { ','.join(self.config.prefix)}\n{'Custom server prefix: ' + custom_prefix if custom_prefix else ''}```")
+        await ctx.send(f"```diff\nPrefix: { prefix }```")
 
     @commands.command(aliases=['info', 'stats', 'status'])
     async def about(self, ctx):

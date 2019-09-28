@@ -13,22 +13,25 @@ class Crypto(commands.Cog):
     async def price(self, ctx, *, symbols):
         """ Returns a price for provided cryptocurrency symbols """
         user = await author.get(ctx.author)
+        message = await ctx.send(f'```Fetching prices...```')
         width = '\t' * 3
         mention = ctx.author.mention
-        message = await ctx.send(f'```Fetching prices...```')
         chart = await coins.generate_chart(ctx, symbols.upper().split(' '), user['quote_to'])
         chart = f'```diff\n{user["quote_to"]}{chart}{width}```{mention}'
         await message.edit(content=chart)
 
     @commands.group(name='pricelist', aliases=['pl'], pass_context=True, invoke_without_command=True)
     @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
-    async def _price_list(self, ctx, page: int = 1):
+    async def _price_list(self, ctx):
         """ View the prices of coins you have saved into your price list"""
         if ctx.invoked_subcommand is None:
             user = await author.get(ctx.author)
+            mention = ctx.author.mention
+
             if not user['price_list']['coins']:
-                await ctx.send(f'```fix\nYour price list is empty```')
+                await ctx.send(f'```fix\nYour price list is empty```{mention}')
                 return await ctx.send_help("pricelist add")
+            message = await ctx.send(f'```Fetching prices...```')
 
             # per_page = self.config.game.pricelist_per_page
             # page_count = 1
@@ -42,7 +45,6 @@ class Crypto(commands.Cog):
             #     user['price_list']['coins'] = price_list[page - 1]
 
             mention = ctx.author.mention
-            message = await ctx.send(f'```Fetching prices...```')
             chart = await coins.generate_chart(ctx, user['price_list']['coins'], user['quote_to'], 'percent_change_24h',
                                                'asc')
 
@@ -79,6 +81,7 @@ class Crypto(commands.Cog):
             await ctx.send(f'```fix\nYour price list is empty```')
             return await ctx.send_help("price list add")
         new_coins = [x for x in user['price_list']['coins'] if x not in symbols.upper().split(' ')]
+
         user['price_list']['coins'] = new_coins if len(new_coins) > 0 else []
         User.save(user)
 

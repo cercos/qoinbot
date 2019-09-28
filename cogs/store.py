@@ -352,6 +352,7 @@ class Store(commands.Cog):
             if stores.count() == 1:
                 loaded_store = Prodict.from_dict(stores[0])
                 item_list = ''
+                loaded_store.inventory = sorted(loaded_store.inventory, key=curried.get_in(['price']), reverse=False)
                 for i, item in enumerate(loaded_store.inventory):
                     item = Prodict.from_dict(item)
                     if user['quote_to'] != 'USD':
@@ -360,9 +361,9 @@ class Store(commands.Cog):
                         item.payout = rates[user['quote_to']] * item.payout
                     formatted_price = currency.symbol(user["quote_to"]) + '{0:.2f}'.format(item.price)
                     formatted_payout = "{0:.2f}".format(item.payout)
-                    item_list += f'{i + 1}. {item.name}{" " * (18 - len(item.name))}{formatted_price}{" " * (10 - len(formatted_price))}{item.about.format(payout=formatted_payout)}\n'
+                    item_list += f'{i + 1}. {item.name}{" " * (15 - len(item.name))}{formatted_price}{" " * (10 - len(formatted_price))}{item.about.format(payout=formatted_payout, rate=str(item.rate) + " minutes")}\n'
                 return await ctx.send(
-                    f'```py\n{user.quote_to}\n{loaded_store.name}\n\nItem{" " * (21 - len("item"))}Price{" " * (10 - len("price"))}Description\n\n{item_list}```')
+                    f'```py\n{user.quote_to}\nStore name: {loaded_store.name}\n\nItem{" " * (18 - len("item"))}Price{" " * (10 - len("price"))}Description\n\n{item_list}\n\nQoins represent a USD value by default, the prices will convert depending upon what quote currency you have set on your account.  Use the "{self.config.prefix[0]}sq <currency symbol>" command to change it```')
             for i, _store in enumerate(stores):
                 _store = Prodict.from_dict(_store)
                 item_count = len(_store.inventory)

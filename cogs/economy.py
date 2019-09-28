@@ -6,6 +6,7 @@ from prodict import Prodict
 import currency
 from utils import default, author, repo, coins, number
 from models import User, Store, Item
+from dateutil import relativedelta
 
 
 class Economy(commands.Cog):
@@ -66,15 +67,14 @@ class Economy(commands.Cog):
         if user.game.last_wage is None:
             user.game.last_wage = datetime.now() - timedelta(hours=1)
         now = datetime.now()
-        diff = now - user.game.last_wage
-        wage_multiplier = diff.seconds / 60 / 60
+        difference = relativedelta.relativedelta(now, user.game.last_wage)
+        wage_multiplier = float('{0:.2f}'.format(difference.hours + (((difference.seconds / 60) + difference.minutes) / 60)))
         wage_earned = float('{0:.2f}'.format(user.game.wage * wage_multiplier))
-        minutes = float(60 - diff.seconds / 60)
-        seconds = (minutes - int(minutes)) * 60
-        if wage_multiplier < 1:
-
+        if difference.hours < 1:
+            minutes = int(60 - difference.minutes)
+            seconds = int(60 - difference.seconds)
             return await ctx.send(
-                f'```fix\nWagey wagey, you\'re in the cagey.  You can collect again in {int(minutes)}:{str(int(seconds)).zfill(2)}\n```{ctx.author.mention}')
+                f'```fix\nWagey wagey, you\'re in the cagey.  You can collect again in {minutes}:{seconds}\n```{ctx.author.mention}')
         if wage_multiplier > 100:
             wage_multiplier = 100
             wage_earned = int(user.game.wage * wage_multiplier)
@@ -107,18 +107,17 @@ class Economy(commands.Cog):
                 total_earned += earned
                 user.item_list[i]['last_run'] = datetime.now()
             else:
-                diff = now - item['last_run']
-                item_multiplier = diff.seconds / 60
+                difference = relativedelta.relativedelta(now, item['last_run'])
+                item_multiplier = float('{0:.2f}'.format((difference.hours * 60) + difference.minutes + (difference.seconds / 60)))
                 earned = 0
                 if item_multiplier < _item.rate:
-                    wait_time = int(_item.rate - item_multiplier)
+                    wait_time = int(_item.rate - difference.minutes)
                     item_earned += f'\n{_item.name} - {wait_time} minutes left'
                     continue
                 else:
                     earned = float('{0:.2f}'.format((_item.payout * (item_multiplier / _item.rate))))
                 item_earned += f'\n+{earned} {self.config.economy.currency_name} - {_item.name}'
                 total_earned += earned
-                user.item_list[i]['last_run'] = datetime.now()
         if float(total_earned) > 0:
             user.game.in_pocket = user.game.in_pocket + total_earned
             User.save(user)

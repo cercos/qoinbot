@@ -13,8 +13,9 @@ class FunCommands(commands.Cog):
     @commands.command(aliases=['8ball'])
     async def eightball(self, ctx, *, question: commands.clean_content):
         """ Consult 8ball to receive an answer """
-        answer = random.choice(lists.ballresponse)
-        await ctx.send(f"```diff\nQuestion: {question}\n+Answer: {answer}```")
+        # answer = random.choice(lists.ballresponse)
+        r = json.loads(await http.get('https://8ball.delegator.com/magic/JSON/' + str(question)))
+        await ctx.send(f"```diff\nQuestion: {question}\n+Answer: {r['magic']['type']}, {r['magic']['answer']}```")
 
     async def randomimageapi(self, ctx, url, endpoint):
         try:

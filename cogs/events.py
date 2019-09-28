@@ -6,6 +6,8 @@ import chalk
 from datetime import datetime
 from discord.ext import commands
 from discord.ext.commands import errors
+from prodict import Prodict
+
 from models import Guild
 from utils import default
 
@@ -36,7 +38,6 @@ class Events(commands.Cog):
             error = ('```py\n{2}{0}: {3}\n```').format(type(err).__name__, ctx.message.content, _traceback, err)
 
             await ctx.send(f'```diff\n-There was an error processing the command: {ctx.command}```{error}')
-
         elif isinstance(err, errors.CheckFailure):
             pass
 
@@ -51,6 +52,7 @@ class Events(commands.Cog):
         guild_template = {
             'guild_id': str(guild.id),
             'name': guild.name,
+            'prefix': self.config.prefix
         }
         guild_id = Guild.insert_one(guild_template).inserted_id
         print(chalk.cyan(f"Joined Guild > ") + chalk.yellow(f'{guild.name}'))
@@ -65,32 +67,27 @@ class Events(commands.Cog):
             pass
         else:
             await to_send.send(self.config.join_message)
-
-    @commands.Cog.listener()
-    async def on_message(self, msg):
-        guild = Guild.find_one({'guild_id': str(msg.guild.id)})
-        if not guild:
-            guild_template = {
-                'guild_id': str(msg.guild.id),
-                'name': msg.guild.name,
-                'prefix': '?'
-            }
-            guild_id = Guild.insert_one(guild_template).inserted_id
-            guild = Guild.find_one({'guild_id': str(msg.guild.id)})
-        if not guild['prefix'] in self.config.prefix and msg.content.startswith(guild['prefix']):
-            msg.content = msg.content.replace(guild['prefix'], '?', 1)
-            await self.bot.process_commands(msg)
+            botguild = next((item for item in self.bot.guilds if item.id == 615228970568515626), None)
+            log = botguild.get_channel(625767405641007106)
+            await log.send(f"```css\nJoined Guild > {guild.name}```")
 
     @commands.Cog.listener()
     async def on_command(self, ctx):
+        botguild = next((item for item in self.bot.guilds if item.id == 615228970568515626), None)
+        log = botguild.get_channel(625767405641007106)
         try:
             print(chalk.bold(chalk.cyan(f'{ctx.guild.name}')) + chalk.yellow(' > ') + chalk.bold(
                 chalk.green(f'{ctx.author}')) + chalk.yellow(': ') + f'{ctx.message.clean_content}')
+            await log.send(f'```md\n[{ctx.guild.name}]({ctx.channel.name}) {ctx.author}: {ctx.message.clean_content}```')
+
         except AttributeError:
             print(chalk.yellow(f"Private message > {ctx.author} > {ctx.message.clean_content}"))
+            await log.send(f'```md\n< Private message > {ctx.author}: {ctx.message.clean_content}```')
 
     @commands.Cog.listener()
     async def on_ready(self):
+        botguild = next((item for item in self.bot.guilds if item.id == 615228970568515626), None)
+        log = botguild.get_channel(625767405641007106)
         if not hasattr(self.bot, 'uptime'):
             self.bot.uptime = datetime.utcnow()
 
@@ -99,6 +96,8 @@ class Events(commands.Cog):
             f'{len(self.bot.guilds)}'))
         await self.bot.change_presence(activity=discord.Game(type=0, name=self.config.playing),
                                        status=discord.Status.online)
+
+        await log.send(f'```css\nReady! Guilds: {len(self.bot.guilds)}```')
 
 
 def setup(bot):

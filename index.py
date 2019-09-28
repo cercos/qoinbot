@@ -1,9 +1,15 @@
 import os
 import discord
 from discord.ext.commands import DefaultHelpCommand
+from discord.ext import commands
+from prodict import Prodict
+import json
+
 from data import Bot
+from models import Guild
 from utils import permissions, default
 import chalk
+
 config = default.get("config.json")
 description = """
 A cryptocurrency super bot
@@ -44,7 +50,28 @@ class HelpFormat(DefaultHelpCommand):
 
 print(chalk.cyan("Logging in..."))
 
-bot = Bot(command_prefix=config.prefix, prefix=config.prefix, command_attrs=dict(hidden=True),
+
+async def prefixes_for(guild):
+    _guild = Guild.find_one({'guild_id': str(guild.id)})
+    if not _guild:
+        guild_template = {
+            'guild_id': str(guild.id),
+            'name': guild.name,
+            'prefix': config.prefix
+        }
+        guild_id = Guild.insert_one(guild_template).inserted_id
+        _guild = Guild.find_one({'guild_id': str(guild.id)})
+
+    return _guild.prefix
+
+
+async def get_prefix(bot, message):
+    extras = await prefixes_for(message.guild)
+    extras = [extras]
+    return commands.when_mentioned_or(*extras)(bot, message)
+
+
+bot = Bot(command_prefix=get_prefix, prefix=config.prefix, command_attrs=dict(hidden=True),
           help_command=HelpFormat())
 
 for file in os.listdir("cogs"):
