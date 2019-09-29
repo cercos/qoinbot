@@ -19,11 +19,8 @@ class Economy(commands.Cog):
     async def balance(self, ctx):
         """ Check your balance """
         user = await author.get(ctx.author)
-        # coin_list = await coins.get_coins(user['quote_to'])
         money = float('{0:.2f}'.format(user.game.money))
         in_pocket = float('{0:.2f}'.format(user.game.in_pocket))
-        # portfolio = float('{0:.2f}'.format(await coins.portfolio_value(user, coin_list)))
-        # networth = float('{0:.2f}'.format(number.round_up(money + in_pocket + portfolio, 2)))
         mention = ctx.author.mention
         await ctx.send(
             f'```py\n{user.quote_to}\nIn Pocket: {currency.symbol(user["quote_to"])}{in_pocket}\nBank: {currency.symbol(user["quote_to"])}{money}\n\nQoins represent a USD value by default, the balances will convert depending upon what quote currency you have set on your account.  Use the "{self.config.prefix[0]}sq <currency symbol>" command to change it```{mention}')
@@ -71,21 +68,21 @@ class Economy(commands.Cog):
         wage_multiplier = float('{0:.2f}'.format(difference.hours + (((difference.seconds / 60) + difference.minutes) / 60)))
         wage_earned = float('{0:.2f}'.format(user.game.wage * wage_multiplier))
         if difference.hours < 1:
-            minutes = int(60 - difference.minutes)
+            minutes = int(59 - difference.minutes)
             seconds = int(60 - difference.seconds)
             return await ctx.send(
-                f'```fix\nWagey wagey, you\'re in the cagey.  You can collect again in {minutes}:{seconds}\n```{ctx.author.mention}')
+                f'```fix\nWagey wagey, you\'re in the cagey.  You can collect again in {minutes}:{str(seconds).zfill(2)}\n```{ctx.author.mention}')
         if wage_multiplier > 100:
             wage_multiplier = 100
-            wage_earned = int(user.game.wage * wage_multiplier)
+            wage_earned = float('{0:.2f}'.format(user.game.wage * wage_multiplier))
 
         user.game.in_pocket = float('{0:.2f}'.format(user.game.in_pocket + wage_earned))
         user.game.last_wage = datetime.now()
         user.game.total_wages = wage_earned + user.game.total_wages if user.game.total_wages else 0
         User.save(user)
-        wage_multiplier = float('{0:.2f}'.format(wage_multiplier))
+        in_time = str(difference.hours) + 'h' + str(difference.minutes).zfill(2) + 'm'
         await ctx.send(
-            f'```diff\n+{wage_earned} {self.config.economy.currency_name} You were in the cage for {wage_multiplier if wage_multiplier < 100 else 100} hours.  You have to wait at least 1 hour to collect again.\n```{ctx.author.mention}')
+            f'```diff\n+{wage_earned} {self.config.economy.currency_name} You were in the cage for {in_time if wage_multiplier < 100 else 100}.  You have to wait at least 1 hour to collect again.\n```{ctx.author.mention}')
 
     @commands.command(name="collect", aliases=['c'])
     @commands.cooldown(rate=1, per=5.0, type=commands.BucketType.user)
@@ -109,15 +106,17 @@ class Economy(commands.Cog):
             else:
                 difference = relativedelta.relativedelta(now, item['last_run'])
                 item_multiplier = float('{0:.2f}'.format((difference.hours * 60) + difference.minutes + (difference.seconds / 60)))
+                print(item_multiplier)
                 earned = 0
                 if item_multiplier < _item.rate:
-                    wait_time = int(_item.rate - difference.minutes)
+                    wait_time = int(_item.rate - difference.minutes) - 1
                     item_earned += f'\n{_item.name} - {wait_time} minutes left'
                     continue
                 else:
                     earned = float('{0:.2f}'.format((_item.payout * (item_multiplier / _item.rate))))
                 item_earned += f'\n+{earned} {self.config.economy.currency_name} - {_item.name}'
                 total_earned += earned
+                user.item_list[i]['last_run'] = datetime.now()
         if float(total_earned) > 0:
             user.game.in_pocket = user.game.in_pocket + total_earned
             User.save(user)

@@ -71,7 +71,7 @@ async def get_prefix(bot, message):
     return commands.when_mentioned_or(*extras)(bot, message)
 
 
-bot = Bot(command_prefix=get_prefix, prefix=config.prefix, command_attrs=dict(hidden=True),
+bot = Bot(command_prefix=get_prefix, prefix=get_prefix, command_attrs=dict(hidden=True),
           help_command=HelpFormat())
 
 for file in os.listdir("cogs"):
