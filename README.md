@@ -34,6 +34,7 @@ Commands a long and short hand form both will be shown below.
 ##### Collect your wage
 ```
 ?wage
+?w
 ```
 ##### Collect Qoins generated from items
 ```
